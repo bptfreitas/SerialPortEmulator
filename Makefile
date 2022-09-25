@@ -1,7 +1,13 @@
 
 KDIR ?= /lib/modules/`uname -r`/build
 
-.PHONY: all clean setup-environment
+
+VIRTUALBOT_MAJOR=166
+
+# VirtualBot Driver name
+VIRTUALBOT_NAME="virtualbot"
+
+.PHONY: all clean setup-environment modules_install
 
 # 
 # setup-environment: configures environment for module development
@@ -15,3 +21,15 @@ all:
 
 clean:
 	$(MAKE) -C $(KDIR) M=$$PWD clean
+
+modules_install:
+	sudo $(MAKE) -C $(KDIR) M=$$PWD modules_install
+
+install:
+	sudo mknod /dev/virtualbot c 166 0
+	sudo chmod 777 /dev/virtualbot
+
+uninstall:
+	sudo rm /dev/virtualbot
+
+
