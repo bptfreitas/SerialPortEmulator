@@ -27,7 +27,9 @@ modules_install:
 
 install:
 	sudo mknod /dev/virtualbot c 166 0
+	sudo sysctl -w kernel.printk=7
 	sudo chmod 777 /dev/virtualbot
+	sysctl kernel.printk
 
 uninstall:
 	sudo rm /dev/virtualbot
