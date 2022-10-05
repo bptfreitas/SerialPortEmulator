@@ -6,6 +6,10 @@
 #include <linux/printk.h>
 #include <linux/fs.h>
 
+#include <linux/types.h>
+
+#include <linux/cdev.h>
+
 #include <linux/slab.h> // For kmalloc/kfree
 
 MODULE_LICENSE("GPL v2");
@@ -13,6 +17,9 @@ MODULE_LICENSE("GPL v2");
 #define BUF_LEN 10
 #define SUCCESS 0
 #define DEVICE_NAME "virtualbot"
+
+// Uncomment this line for device debugging
+//#define VIRTUAL_BOT_DEBUG 0
 
 
 // Simulador do Arduino
@@ -27,16 +34,19 @@ MODULE_LICENSE("GPL v2");
 int virtualbot_init(void);
 void virtualbot_exit(void);
 
-static int device_open(struct inode *, struct file *);
-static int device_release(struct inode *, struct file *);
-static ssize_t device_read(struct file *, char *, size_t, loff_t *);
-static ssize_t device_write(struct file *, const char *, size_t, loff_t *);
+static int virtualbot_open(struct inode *, struct file *);
+static int virtualbot_release(struct inode *, struct file *);
+static ssize_t virtualbot_read(struct file *, char *, size_t, loff_t *);
+static ssize_t virtualbot_write(struct file *, const char *, size_t, loff_t *);
 
 /* 
  * Global variables are declared as static, so are global within the file. 
  */
 
-static int Major;		/* Major number assigned to our device driver */
+static int majorNumber;		/* Major number assigned to our device driver */
+
+static dev_t device;
+
 static int Device_Open = 0;	/* Is device open?  
 				 * Used to prevent multiple access to device */
 static char msg[BUF_LEN];	/* The msg the device will give when asked */
@@ -47,29 +57,38 @@ static char *msg_Ptr;
 
 
 static struct file_operations fops = {
-	.read = device_read,
-	.write = device_write,
-	.open = device_open,
-	.release = device_release
+	.read = virtualbot_read,
+	.write = virtualbot_write,
+	.open = virtualbot_open,
+	.release = virtualbot_release
 };
 
 int __init virtualbot_init(void){
 
-    Major = __register_chrdev(VIRTUALBOT_MAJOR, 0, 1, DEVICE_NAME, &fops);
+	int result = alloc_chrdev_region(&device, 
+		0,
+		1,
+		DEVICE_NAME);
 
-	if (Major < 0) {
-	  printk(KERN_ALERT "Registering char device failed with %d\n", VIRTUALBOT_MAJOR);
-	  return Major;
+	if (result < 0) {
+		printk(KERN_WARNING "virtualbot: can't get major %d\n", majorNumber);
+		return result;
 	}
 
+	majorNumber = MAJOR(device);
+
+	printk(KERN_INFO "virtualbot: registered correctly with major number %d\n", majorNumber);
+
+#if VIRTUAL_BOT_DEBUG
 	printk(KERN_INFO "I was assigned major number %d. To talk to\n", VIRTUALBOT_MAJOR);
 	printk(KERN_INFO "the driver, create a dev file with\n");
 	printk(KERN_INFO "'mknod /dev/%s c %d 0'.\n", DEVICE_NAME, VIRTUALBOT_MAJOR);
 	printk(KERN_INFO "Try various minor numbers. Try to cat and echo to\n");
 	printk(KERN_INFO "the device file.\n");
 	printk(KERN_INFO "Remove the device file and module when done.\n");
+#endif
 
-	return SUCCESS; 
+	return 0; 
 };
 
 
@@ -77,10 +96,16 @@ void __exit virtualbot_exit(void){
 	/* 
 	 * Unregister the device 
 	 */
-	__unregister_chrdev(VIRTUALBOT_MAJOR, 0, 1, DEVICE_NAME);
-	
-	//printk(KERN_ALERT "Error in unregister_chrdev: %d\n", ret);
 
+	int majorNumber, minorNumber;
+
+	dev_t devno = MKDEV(majorNumber, minorNumber);
+
+	unregister_chrdev_region(majorNumber, DEVICE_NAME);  // unregister the major number
+
+#if VIRTUAL_BOT_DEBUG
+	printk(KERN_INFO "Device unregistered\n");
+#endif
 
 }
 
@@ -92,7 +117,7 @@ void __exit virtualbot_exit(void){
  * Called when a process tries to open the device file, like
  * "cat /dev/mycharfile"
  */
-static int device_open(struct inode *inode, struct file *file)
+static int virtualbot_open(struct inode *inode, struct file *file)
 {
 	static int counter = 0;
 
@@ -110,7 +135,7 @@ static int device_open(struct inode *inode, struct file *file)
 /* 
  * Called when a process closes the device file.
  */
-static int device_release(struct inode *inode, struct file *file)
+static int virtualbot_release(struct inode *inode, struct file *file)
 {
 	Device_Open--;		/* We're now ready for our next caller */
 
@@ -127,7 +152,7 @@ static int device_release(struct inode *inode, struct file *file)
  * Called when a process, which already opened the dev file, attempts to
  * read from it.
  */
-static ssize_t device_read(struct file *filp,	/* see include/linux/fs.h   */
+static ssize_t virtualbot_read(struct file *filp,	/* see include/linux/fs.h   */
 			   char *buffer,	/* buffer to fill with data */
 			   size_t length,	/* length of the buffer     */
 			   loff_t * offset)
@@ -137,9 +162,7 @@ static ssize_t device_read(struct file *filp,	/* see include/linux/fs.h   */
 
     int nbytes_read = sizeof(char) * strlen(javino_test);
 
-    buffer = (char*)kmalloc( nbytes_read + 1 , GFP_KERNEL);
-
-    buffer[ nbytes_read ] = '\n';
+	copy_to_user(buffer, javino_test, strlen(javino_test) );
 
 #ifdef NOT_USED
 	/*
@@ -182,7 +205,7 @@ static ssize_t device_read(struct file *filp,	/* see include/linux/fs.h   */
  * Called when a process writes to dev file: echo "hi" > /dev/hello 
  */
 static ssize_t
-device_write(struct file *filp, const char *buff, size_t len, loff_t * off)
+virtualbot_write(struct file *filp, const char *buff, size_t len, loff_t * off)
 {
 	printk(KERN_ALERT "Sorry, this operation isn't supported.\n");
 	//return -EINVAL;
