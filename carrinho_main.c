@@ -112,21 +112,18 @@ void __exit virtualbot_exit(void){
  */
 static int virtualbot_open(struct inode *inode, struct file *file)
 {
-	static int counter = 0;
-
+	
 #if VIRTUAL_BOT_DEBUG
 	printk(KERN_INFO "\nvirtualbot: openning device");
 #endif
 
-	if (Device_Open)
-		return -EBUSY;
+	static int counter = 0;
 
-	Device_Open++;
 	sprintf(msg, "I already told you %d times Hello world!\n", counter++);
 	msg_Ptr = msg;
 	try_module_get(THIS_MODULE);
 
-	return SUCCESS;
+	return 0;
 }
 
 /* 
