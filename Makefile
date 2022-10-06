@@ -7,13 +7,12 @@ VIRTUALBOT_MAJOR=166
 # VirtualBot Driver name
 VIRTUALBOT_NAME="virtualbot"
 
-.PHONY: all clean setup-environment modules_install
+.PHONY: all clean setup_dev_environment modules_install set_debug install modules_install
 
-# 
 # setup-environment: configures environment for module development
 # For Debian systems, start by using 'apt install make binutils'
 # 1) It downloads the current system kernel headers 
-setup-environment:
+setup_dev_environment:
 	sudo apt install linux-headers-`uname -r`
 
 all: 
@@ -25,13 +24,20 @@ clean:
 modules_install:
 	sudo $(MAKE) -C $(KDIR) M=$$PWD modules_install
 
-install:
-	sudo mknod /dev/virtualbot c 166 0
+set_debug:
 	sudo sysctl -w kernel.printk=7
+	sudo sysctl kernel.printk
+
+check_device_logs:
+	grep 'virtualbot' /var/log/kern.log
+
+install:
+	sudo insmod /lib/modules/`uname -r`/extra/carrinho.ko
+	sudo mknod /dev/virtualbot c `egrep 'virtualbot' /proc/devices | cut -d' ' -f1` 0
 	sudo chmod 777 /dev/virtualbot
-	sysctl kernel.printk
 
 uninstall:
-	sudo rm /dev/virtualbot
+	sudo rmmod /lib/modules/`uname -r`/extra/carrinho.ko
+	sudo rm -f /dev/virtualbot
 
 

@@ -18,15 +18,14 @@ MODULE_LICENSE("GPL v2");
 #define SUCCESS 0
 #define DEVICE_NAME "virtualbot"
 
-// Uncomment this line for device debugging
-//#define VIRTUAL_BOT_DEBUG 0
-
+// Set this to 1 for debugging messages
+#define VIRTUAL_BOT_DEBUG 1
 
 // Simulador do Arduino
 // crw-rw---- root dialout 166 0 -
 
 
-#define VIRTUALBOT_MAJOR 166
+// #define VIRTUALBOT_MAJOR 166
 
 /*  
  *  Prototypes - this would normally go in a .h file
@@ -42,8 +41,6 @@ static ssize_t virtualbot_write(struct file *, const char *, size_t, loff_t *);
 /* 
  * Global variables are declared as static, so are global within the file. 
  */
-
-static int majorNumber;		/* Major number assigned to our device driver */
 
 static dev_t device;
 
@@ -71,15 +68,15 @@ int __init virtualbot_init(void){
 		DEVICE_NAME);
 
 	if (result < 0) {
-		printk(KERN_WARNING "virtualbot: can't get major %d\n", majorNumber);
+		printk(KERN_WARNING "virtualbot: can't get major number\n");
 		return result;
 	}
 
-	majorNumber = MAJOR(device);
+	int majorNumber = MAJOR(device);
 
 	printk(KERN_INFO "virtualbot: registered correctly with major number %d\n", majorNumber);
 
-#if VIRTUAL_BOT_DEBUG
+#if 0
 	printk(KERN_INFO "I was assigned major number %d. To talk to\n", VIRTUALBOT_MAJOR);
 	printk(KERN_INFO "the driver, create a dev file with\n");
 	printk(KERN_INFO "'mknod /dev/%s c %d 0'.\n", DEVICE_NAME, VIRTUALBOT_MAJOR);
@@ -97,11 +94,7 @@ void __exit virtualbot_exit(void){
 	 * Unregister the device 
 	 */
 
-	int majorNumber, minorNumber;
-
-	dev_t devno = MKDEV(majorNumber, minorNumber);
-
-	unregister_chrdev_region(majorNumber, DEVICE_NAME);  // unregister the major number
+	unregister_chrdev_region(device, 1);  // unregister the major number
 
 #if VIRTUAL_BOT_DEBUG
 	printk(KERN_INFO "Device unregistered\n");
@@ -120,6 +113,10 @@ void __exit virtualbot_exit(void){
 static int virtualbot_open(struct inode *inode, struct file *file)
 {
 	static int counter = 0;
+
+#if VIRTUAL_BOT_DEBUG
+	printk(KERN_INFO "\nvirtualbot: openning device");
+#endif
 
 	if (Device_Open)
 		return -EBUSY;
