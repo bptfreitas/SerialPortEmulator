@@ -12,14 +12,17 @@
 
 #include <linux/slab.h> // For kmalloc/kfree
 
+
+#include <virtualbot.h>
+
+
+struct virtualbot_dev *virtualbot_devices;
+
+
 MODULE_LICENSE("GPL v2");
 
 #define BUF_LEN 10
 #define SUCCESS 0
-#define DEVICE_NAME "virtualbot"
-
-// Set this to 1 for debugging messages
-#define VIRTUAL_BOT_DEBUG 1
 
 // Simulador do Arduino
 // crw-rw---- root dialout 166 0 -
@@ -44,16 +47,17 @@ static ssize_t virtualbot_write(struct file *, const char *, size_t, loff_t *);
 
 static dev_t device;
 
-static int Device_Open = 0;	/* Is device open?  
-				 * Used to prevent multiple access to device */
-static char msg[BUF_LEN];	/* The msg the device will give when asked */
-static char *msg_Ptr;
+//  static int Device_Open = 0;	/* Is device open?  
+// * Used to prevent multiple access to device */
+// static char msg[BUF_LEN];	/* The msg the device will give when asked */
+// static char *msg_Ptr;
 
 
 #define JAVINO_READ_TEST_STRING "fffe02OK"
 
 
 static struct file_operations fops = {
+	.owner = THIS_MODULE,
 	.read = virtualbot_read,
 	.write = virtualbot_write,
 	.open = virtualbot_open,
@@ -61,6 +65,8 @@ static struct file_operations fops = {
 };
 
 int __init virtualbot_init(void){
+
+	int err, majorNumber, minorNumber;
 
 	int result = alloc_chrdev_region(&device, 
 		0,
@@ -72,9 +78,21 @@ int __init virtualbot_init(void){
 		return result;
 	}
 
-	int majorNumber = MAJOR(device);
+	majorNumber = MAJOR(device);
+	minorNumber = MINOR(device);	
 
-	printk(KERN_INFO "virtualbot: registered correctly with major number %d\n", majorNumber);
+	printk(KERN_INFO "\nvirtualbot: registered with major number %d and first minor %d", majorNumber, minorNumber);	
+
+	virtualbot_devices = kmalloc( sizeof(struct virtualbot_dev) , GFP_KERNEL );
+
+	cdev_init(&virtualbot_devices->cdev, &fops);
+
+	virtualbot_devices->cdev.owner = THIS_MODULE;
+	err = cdev_add(&virtualbot_devices->cdev, device, 1);
+
+	/* Fail gracefully if need be */
+	if (err)
+		printk(KERN_NOTICE "virtualbot: Error adding virtualbot");
 
 #if 0
 	printk(KERN_INFO "I was assigned major number %d. To talk to\n", VIRTUALBOT_MAJOR);
@@ -96,7 +114,7 @@ void __exit virtualbot_exit(void){
 
 	unregister_chrdev_region(device, 1);  // unregister the major number
 
-#if VIRTUAL_BOT_DEBUG
+#ifdef VIRTUALBOT_DEBUG
 	printk(KERN_INFO "Device unregistered\n");
 #endif
 
@@ -112,16 +130,13 @@ void __exit virtualbot_exit(void){
  */
 static int virtualbot_open(struct inode *inode, struct file *file)
 {
-	
-#if VIRTUAL_BOT_DEBUG
+//	static int counter = 0;
+
 	printk(KERN_INFO "\nvirtualbot: openning device");
-#endif
 
-	static int counter = 0;
-
-	sprintf(msg, "I already told you %d times Hello world!\n", counter++);
-	msg_Ptr = msg;
-	try_module_get(THIS_MODULE);
+	//sprintf(msg, "I already told you %d times Hello world!\n", counter++);
+	//msg_Ptr = msg;
+	//try_module_get(THIS_MODULE);
 
 	return 0;
 }
@@ -131,13 +146,13 @@ static int virtualbot_open(struct inode *inode, struct file *file)
  */
 static int virtualbot_release(struct inode *inode, struct file *file)
 {
-	Device_Open--;		/* We're now ready for our next caller */
+	//Device_Open--;		/* We're now ready for our next caller */
 
 	/* 
 	 * Decrement the usage count, or else once you opened the file, you'll
 	 * never get get rid of the module. 
 	 */
-	module_put(THIS_MODULE);
+	//module_put(THIS_MODULE);
 
 	return 0;
 }
@@ -151,12 +166,22 @@ static ssize_t virtualbot_read(struct file *filp,	/* see include/linux/fs.h   */
 			   size_t length,	/* length of the buffer     */
 			   loff_t * offset)
 {
+	printk(KERN_INFO "virtualbot: starting read \n");
+
+	int nbytes_read;
 
     char javino_test[] = JAVINO_READ_TEST_STRING;
 
-    int nbytes_read = sizeof(char) * strlen(javino_test);
+	if ( *offset >= strlen(javino_test) )
+		return 0;
 
-	copy_to_user(buffer, javino_test, strlen(javino_test) );
+	printk( KERN_INFO "virtualbot: f_pos = %lld, size = %lu", (long long) *offset, length );
+
+	copy_to_user(buffer, &javino_test, strlen(javino_test) );
+
+	nbytes_read = strlen(javino_test);
+
+	*offset += strlen( javino_test) ;
 
 #ifdef NOT_USED
 	/*
