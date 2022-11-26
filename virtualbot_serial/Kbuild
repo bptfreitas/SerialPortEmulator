@@ -1,5 +1,5 @@
 obj-m := virtualbot.o
 
-virtualbot-y := virtualbot_main.o
+virtualbot-y := src/virtualbot_main.o
 
 ccflags-y := -I$(src)/include

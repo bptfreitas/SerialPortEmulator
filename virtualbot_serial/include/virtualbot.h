@@ -6,6 +6,8 @@
 
 #define DEVICE_NAME "virtualbot"
 
+#define TTY_VIRTUALBOT_MAJOR 4
+
 // Set this to 1 for extra debugging messages
 #define VIRTUALBOT_DEBUG
 

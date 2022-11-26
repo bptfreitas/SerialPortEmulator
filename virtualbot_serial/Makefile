@@ -42,7 +42,7 @@ check_device_logs:
 
 install:
 	sudo insmod /lib/modules/`uname -r`/extra/virtualbot.ko
-	sudo mknod /dev/virtualbot c `egrep 'virtualbot' /proc/devices | cut -d' ' -f1` 0
+	sudo mknod /dev/virtualbot c 4 200
 	sudo chmod 777 /dev/virtualbot
 
 uninstall:
