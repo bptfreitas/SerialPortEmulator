@@ -429,7 +429,7 @@ int __init virtualbot_init(void){
     virtualbot_tty_driver->driver_name = "virtualbot_tty";
     virtualbot_tty_driver->name = "vbtty";
     //virtualbot_tty_driver->devfs_name = "tts/ttty%d";
-    virtualbot_tty_driver->major = TTY_MAJOR,
+    virtualbot_tty_driver->major = 200,
     virtualbot_tty_driver->type = TTY_DRIVER_TYPE_SERIAL,
     virtualbot_tty_driver->subtype = SERIAL_TYPE_NORMAL,
     virtualbot_tty_driver->flags = 
@@ -466,7 +466,9 @@ void __exit virtualbot_exit(void){
 	 */
 	//platform_driver_unregister( &virtualbot_serial_driver );
 
+    tty_unregister_device(virtualbot_tty_driver, 0);
 
+	tty_unregister_driver(virtualbot_tty_driver);
 
 	printk( KERN_INFO "virtualbot: device unregistered" );
 }
