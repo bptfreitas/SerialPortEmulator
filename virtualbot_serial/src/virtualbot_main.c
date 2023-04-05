@@ -15,15 +15,17 @@
 #include <linux/platform_device.h>
 #include <linux/serial_core.h>
 
+#include <linux/tty_driver.h>
+
+#include <linux/tty.h>
+
 
 #include <virtualbot.h>
 
 
-struct virtualbot_dev *virtualbot_devices;
-
-static struct uart_port *port;
-
 MODULE_LICENSE("GPL v2");
+
+
 
 #define BUF_LEN 10
 #define SUCCESS 0
@@ -78,6 +80,7 @@ console_initcall(virtualbot_console_init);
 
 #endif
 
+#ifdef VIRTUALBOT_UART
 //static int virtualbot_open(struct inode *, struct file *);
 //static int virtualbot_release(struct inode *, struct file *);
 //static ssize_t virtualbot_read(struct file *, char *, size_t, loff_t *);
@@ -228,41 +231,6 @@ static struct uart_ops virtualbot_uart_ops = {
 	.release_port = virtualbot_release_port
 };
 
-#if 0
-static int virtualbot_serial_probe(struct platform_device *pdev)
-{
-/*
-	struct atmel_uart_port *port;
-	port = &atmel_ports[pdev->id];
-	port->backup_imr = 0;
-	atmel_init_port(port, pdev);
-	uart_add_one_port(&atmel_uart, &port->uart);
-	platform_set_drvdata(pdev, port);
-*/
-
-	port = kmalloc( GFP_KERNEL, sizeof(struct uart_port) );
-
-	platform_set_drvdata(pdev, port);
-	
-	return 0;
-}
-
-
-static int virtualbot_serial_remove(struct platform_device *pdev)
-{
-	struct uart_port *port = platform_get_drvdata(pdev);
-
-	platform_set_drvdata(pdev, NULL);
-
-	kfree(port);
-
-	//uart_remove_one_port(&atmel_uart, port);
-
-	return 0;
-}
-
-#endif
-
 static struct platform_driver virtualbot_serial_driver = {
 	//.probe = virtualbot_serial_probe,
 	//.remove = virtualbot_serial_remove,
@@ -273,7 +241,6 @@ static struct platform_driver virtualbot_serial_driver = {
 		.owner = THIS_MODULE,
 	},
 };
-
 
 
 static struct uart_driver virtualbot_uart = {
@@ -344,6 +311,162 @@ void __exit virtualbot_exit(void){
 	uart_unregister_driver( &virtualbot_uart );
 
 	kfree( port );
+
+	printk( KERN_INFO "virtualbot: device unregistered" );
+}
+
+#endif
+
+#if 0
+static int virtualbot_serial_probe(struct platform_device *pdev)
+{
+/*
+	struct atmel_uart_port *port;
+	port = &atmel_ports[pdev->id];
+	port->backup_imr = 0;
+	atmel_init_port(port, pdev);
+	uart_add_one_port(&atmel_uart, &port->uart);
+	platform_set_drvdata(pdev, port);
+*/
+
+	port = kmalloc( GFP_KERNEL, sizeof(struct uart_port) );
+
+	platform_set_drvdata(pdev, port);
+	
+	return 0;
+}
+
+
+static int virtualbot_serial_remove(struct platform_device *pdev)
+{
+	struct uart_port *port = platform_get_drvdata(pdev);
+
+	platform_set_drvdata(pdev, NULL);
+
+	kfree(port);
+
+	//uart_remove_one_port(&atmel_uart, port);
+
+	return 0;
+}
+
+#endif
+
+
+static int virtualbot_open(struct tty_struct *tty, struct file *file){
+
+	return 0;
+}
+
+
+static void virtualbot_close(struct tty_struct *tty, struct file *file)
+{
+    return;
+}
+
+static int virtualbot_write(struct tty_struct *tty, 
+	const unsigned char *buffer, 
+	int count)
+{
+    return 0;
+}
+
+static unsigned int virtualbot_write_room(struct tty_struct *tty) 
+{
+    return 0;
+}
+
+static void virtualbot_set_termios(
+	struct tty_struct *tty, 
+	struct ktermios *old)
+{
+
+}
+
+
+
+struct ktermios tty_std_termios = {
+    .c_iflag = ICRNL | IXON,
+    .c_oflag = OPOST | ONLCR,
+    .c_cflag = B38400 | CS8 | CREAD | HUPCL,
+    .c_lflag = ISIG | ICANON | ECHO | ECHOE | ECHOK |
+               ECHOCTL | ECHOKE | IEXTEN,
+    .c_cc = INIT_C_CC
+};
+
+static struct tty_operations virtualbot_serial_ops = {
+    .open = virtualbot_open,
+    .close = virtualbot_close,
+    .write = virtualbot_write,
+    .write_room = virtualbot_write_room,
+    .set_termios = virtualbot_set_termios,
+};
+
+static struct tty_driver *virtualbot_tty_driver;
+
+int __init virtualbot_init(void){
+
+	int rc;
+
+	virtualbot_tty_driver = tty_alloc_driver(1,
+		TTY_DRIVER_DYNAMIC_ALLOC 
+		| TTY_DRIVER_REAL_RAW );
+
+/*
+	virtualbot_tty_driver = __tty_alloc_driver(1, 
+		THIS_MODULE,
+		TTY_DRIVER_DYNAMIC_ALLOC
+		);
+*/
+
+	if (!virtualbot_tty_driver){
+
+		printk( KERN_ERR "virtualbot: error allocating driver!" );
+		return -ENOMEM;	
+	}
+
+	virtualbot_tty_driver->owner = THIS_MODULE;
+    virtualbot_tty_driver->driver_name = "virtualbot_tty";
+    virtualbot_tty_driver->name = "vbtty";
+    //virtualbot_tty_driver->devfs_name = "tts/ttty%d";
+    virtualbot_tty_driver->major = TTY_MAJOR,
+    virtualbot_tty_driver->type = TTY_DRIVER_TYPE_SERIAL,
+    virtualbot_tty_driver->subtype = SERIAL_TYPE_NORMAL,
+    virtualbot_tty_driver->flags = 
+		TTY_DRIVER_REAL_RAW
+//		| TTY_DRIVER_NO_DEVFS,
+		;
+    virtualbot_tty_driver->init_termios = tty_std_termios;
+    virtualbot_tty_driver->init_termios.c_cflag = 
+		B9600 | CS8 | CREAD | HUPCL | CLOCAL;
+
+    tty_set_operations(virtualbot_tty_driver, &virtualbot_serial_ops);	
+
+	rc = tty_register_driver(virtualbot_tty_driver);
+
+	if (rc) {
+		printk(KERN_ERR "virtualbot: failed to register driver");
+
+		tty_driver_kref_put(virtualbot_tty_driver);
+
+		return rc;
+	}
+
+	tty_register_device(virtualbot_tty_driver, 0, NULL);	
+
+	printk( KERN_INFO "virtualbot: driver registered" );
+
+	return 0; 
+};
+
+
+void __exit virtualbot_exit(void){
+	/* 
+	 * Unregister the device 
+	 */
+	//platform_driver_unregister( &virtualbot_serial_driver );
+
+
 
 	printk( KERN_INFO "virtualbot: device unregistered" );
 }
