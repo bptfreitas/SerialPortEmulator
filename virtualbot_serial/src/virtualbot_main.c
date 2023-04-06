@@ -17,6 +17,8 @@
 
 #include <linux/tty_driver.h>
 
+#include <linux/semaphore.h>
+
 #include <linux/tty.h>
 
 
@@ -352,8 +354,63 @@ static int virtualbot_serial_remove(struct platform_device *pdev)
 
 #endif
 
+struct virtualbot_serial {
+    struct tty_struct   *tty;   /* pointer to the tty for this device */
+    int         open_count; 	/* number of times this port has been opened */
+    struct semaphore    sem;    /* locks this structure */
+    struct timer_list   *timer;
+};
+
+
+struct virtualbot_serial* virtualbot_table[ VIRTUALBOT_MAX_DEVICES ];
 
 static int virtualbot_open(struct tty_struct *tty, struct file *file){
+
+    struct virtualbot_serial *virtualbot;
+    struct timer_list *timer;
+    int index;
+
+    /* initialize the pointer in case something fails */
+    tty->driver_data = NULL;
+
+	index = tty->index;
+
+#ifdef VIRTUALBOT_DEBUG
+	printk(KERN_INFO "virtualbot: open port %d", index);
+#endif	
+
+    virtualbot = virtualbot_table[index];
+
+    if (virtualbot == NULL) {
+        /* first time accessing this device, let's create it */
+        virtualbot = kmalloc(sizeof(*virtualbot), GFP_KERNEL);
+        if (!virtualbot)
+            return -ENOMEM;
+
+        sema_init( &virtualbot->sem, 1 );
+        virtualbot->open_count = 0;
+        virtualbot->timer = NULL;
+
+        virtualbot_table[ index ] = virtualbot;
+    }
+
+    down(&virtualbot->sem);
+
+ 	++virtualbot->open_count;
+    if (virtualbot->open_count == 1) {
+        /* this is the first time this port is opened */
+        /* do any hardware initialization needed here */
+	}
+
+	up(&virtualbot->sem);
+
+    /* save our structure within the tty structure */
+    tty->driver_data = virtualbot;
+    virtualbot->tty = tty;
+
+#ifdef VIRTUALBOT_DEBUG
+	printk(KERN_INFO "virtualbot: open port %d success", index);
+#endif		
 
 	return 0;
 }
@@ -361,6 +418,32 @@ static int virtualbot_open(struct tty_struct *tty, struct file *file){
 
 static void virtualbot_close(struct tty_struct *tty, struct file *file)
 {
+
+	struct virtualbot_serial *virtualbot = tty->driver_data;
+
+    if (virtualbot){
+
+		down(&virtualbot->sem);
+
+		if (!virtualbot->open_count) {
+			/* port was never opened */
+			up(&virtualbot->sem);
+			return;
+		}
+		
+		--(virtualbot->open_count);
+
+		if (virtualbot->open_count <= 0) {
+			/* The port is being closed by the last user. */
+			/* Do any hardware specific stuff here */
+
+			/* shut down our timer */
+			del_timer(virtualbot->timer);
+			up(&virtualbot->sem);
+			return;
+		}
+	}
+
     return;
 }
 
