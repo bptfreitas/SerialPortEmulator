@@ -18,7 +18,7 @@ VIRTUALBOT_DEVICE=/dev/virtualbot
 # For Debian systems, start by using 'apt install make binutils'
 # 1) It downloads the current system kernel headers 
 setup_dev_environment:
-	sudo apt install linux-headers-`uname -r`
+	sudo apt install linux-headers-`uname -r` python3-serial
 
 all: 
 	$(MAKE) -C $(KDIR) M=$$PWD modules
