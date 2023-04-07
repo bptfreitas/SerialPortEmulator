@@ -41,15 +41,16 @@ check_device_logs:
 
 install:
 	sudo modprobe virtualbot
-	sudo mknod /dev/virtualbot c 4 200
+	sudo mknod /dev/virtualbot c 200 0
 	sudo chmod 777 /dev/virtualbot
+	sudo chmod 777 /dev/ttyVB0
 
 uninstall:
-	sudo modprobe -r virtualbot
-	sudo rm -f /lib/modules/`uname -r`/virtualbot.ko
 	sudo rm -f /dev/virtualbot
-	
-	
+	sudo modprobe -r virtualbot
+#	sudo rm -f /lib/modules/`uname -r`/extra/virtualbot.ko
+	sudo depmod
+
 test01:
 	python3 ./javython.py send $(VIRTUALBOT_DEVICE) fffe0bgetPercepts
 
