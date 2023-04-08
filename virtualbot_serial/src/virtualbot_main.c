@@ -1,543 +1,245 @@
-
-
-#include <linux/module.h>
-#include <linux/kernel.h>
-#include <linux/init.h>
-#include <linux/printk.h>
-#include <linux/fs.h>
-
-#include <linux/types.h>
-
-#include <linux/cdev.h>
-
-#include <linux/slab.h> // For kmalloc/kfree
-
-#include <linux/platform_device.h>
-#include <linux/serial_core.h>
-
-#include <linux/tty_driver.h>
-
-#include <linux/semaphore.h>
-
-#include <linux/tty.h>
-
-
-#include <virtualbot.h>
-
-
-MODULE_LICENSE("GPL v2");
-
-
-
-#define BUF_LEN 10
-#define SUCCESS 0
-
-// Simulador do Arduino
-// crw-rw---- root dialout 166 0 -
-
-
-// #define VIRTUALBOT_MAJOR 166
-
-/*  
- *  Prototypes - this would normally go in a .h file
- */
-int virtualbot_init(void);
-void virtualbot_exit(void);
-
-#ifdef VIRTUALBOT_CONSOLE
-
-static struct console virtualbot_console = {
-	.name = VIRTUALBOT_TTY_NAME,
-	.write = virtualbot_console_write,
-	/* Helper function from the serial_core layer */
-	.device = uart_console_device,
-	.setup = virtualbot_console_setup,
-	/* Ask for the kernel messages buffered during
-	* boot to be printed to the console when activated */
-	.flags = CON_PRINTBUFFER,
-	.index = -1,
-	.data = &serial_txx9_reg,
-};
-
-static int __init virtualbot_console_init(void)
-{
-	register_console(&virtualbot_console);
-	return 0;
-}
-
-static int __init virtualbot_console_setup(
-	struct console *co,
-	char *options)
-{
-	int baud = 9600;
-	int bits = 8;
-	int parity = 'n';
-	int flow = 'n';
-
-
-	return uart_set_options(port, co, baud, parity, bits, flow);
-}
-
-console_initcall(virtualbot_console_init);
-
-#endif
-
-#ifdef VIRTUALBOT_UART
-//static int virtualbot_open(struct inode *, struct file *);
-//static int virtualbot_release(struct inode *, struct file *);
-//static ssize_t virtualbot_read(struct file *, char *, size_t, loff_t *);
-//static ssize_t virtualbot_write(struct file *, const char *, size_t, loff_t *);
-
-/* 
- * Global variables are declared as static, so are global within the file. 
- */
-
-//static dev_t device;
-
-//  static int Device_Open = 0;	/* Is device open?  
-// * Used to prevent multiple access to device */
-// static char msg[BUF_LEN];	/* The msg the device will give when asked */
-// static char *msg_Ptr;
-
-
-#define JAVINO_READ_TEST_STRING "fffe02OK"
-
- /* Grab any interrupt resources and initialise any low level driver state.
- *	Enable the port for reception. It should not activate RTS nor DTR;
- *	this will be done via a separate call to @set_mctrl().
- *
- *	This method will only be called when the port is initially opened.
- *
- *	Locking: port_sem taken.
- *	Interrupts: globally disabled. */
-int virtualbot_startup(struct uart_port *port){
-
-//#ifdef VIRTUALBOT_DEBUG
-	printk(KERN_INFO "virtualbot: startup" );
-//#endif
-
-	return 0;
-}
-
-/*	Disable the @port, disable any break condition that may be in effect,
- *	and free any interrupt resources. It should not disable RTS nor DTR;
- *	this will have already been done via a separate call to @set_mctrl().
- *
- *	Drivers must not access @port->state once this call has completed.
- *
- *	This method will only be called when there are no more users of this
- *	@port.
- *
- *	Locking: port_sem taken.
- *	Interrupts: caller dependent. */
-void virtualbot_shutdown(struct uart_port *port){
-
-//#ifdef VIRTUALBOT_DEBUG
-	printk(KERN_INFO "virtualbot: shutdown" );
-//#endif
-
-}
-
-/* Start transmitting characters.
- *
- *	Locking: @port->lock taken.
- *	Interrupts: locally disabled.
- *	This call must not sleep
- */
-void virtualbot_start_tx(struct uart_port *port){
-
-	struct circ_buf *xmit = &port->state->xmit;
-
-//#ifdef VIRTUALBOT_DEBUG
-	printk(KERN_INFO "virtualbot: start_tx" );
-//#endif	
-
-	while (!uart_circ_empty(xmit)) {
-		// foo_uart_putc(port, xmit->buf[xmit->tail]);
-		printk(KERN_INFO "virtualbot: start_tx[%c]", xmit->buf[xmit->tail] );
-		xmit->tail = (xmit->tail + 1) & (UART_XMIT_SIZE - 1);
-		port->icount.tx++;
-	}	
-
-
-}
-
-/* Stop transmitting characters. This might be due to the CTS line
- *	becoming inactive or the tty layer indicating we want to stop
- *	transmission due to an %XOFF character.
- *
- *	The driver should stop transmitting characters as soon as possible.
- *
- *	Locking: @port->lock taken.
- *	Interrupts: locally disabled.
- *	This call must not sleep
- */
-void virtualbot_stop_tx(struct uart_port *port){
-
-	printk(KERN_INFO "virtualbot: stop_rx" );
-
-
-}
-
-/* This function tests whether the transmitter fifo and shifter for the
- *	@port is empty. If it is empty, this function should return
- *	%TIOCSER_TEMT, otherwise return 0. If the port does not support this
- *	operation, then it should return %TIOCSER_TEMT.
- *
- *	Locking: none.
- *	Interrupts: caller dependent.
- *	This call must not sleep */
-unsigned int virtualbot_tx_empty(struct uart_port *port){
-
-	printk(KERN_INFO "virtualbot: tx_empty" );
-
-
-	return TIOCSER_TEMT;
-}
-
- /*	Request any memory and IO region resources required by the port. If any
- *	fail, no resources should be registered when this function returns, and
- *	it should return -%EBUSY on failure.
- *
- *	Locking: none.
- *	Interrupts: caller dependent. */
- int virtualbot_request_port(struct uart_port *port){
-
-	printk(KERN_INFO "virtualbot: request_port" );
-
-
-	return 0;
- }
-
- /*	Release any memory and IO region resources currently in use by the
- *	@port.
- *
- *	Locking: none.
- *	Interrupts: caller dependent. */
-void virtualbot_release_port(struct uart_port *port){
-
-	printk(KERN_INFO "virtualbot: release_port" );
-}
-
-static struct uart_ops virtualbot_uart_ops = {
-
-	.startup = virtualbot_startup,
-	.shutdown = virtualbot_shutdown,
-
-	.tx_empty = virtualbot_tx_empty,
-
-	.start_tx = virtualbot_start_tx,
-	.stop_tx = virtualbot_stop_tx,
-
-	.request_port = virtualbot_request_port,
-	.release_port = virtualbot_release_port
-};
-
-static struct platform_driver virtualbot_serial_driver = {
-	//.probe = virtualbot_serial_probe,
-	//.remove = virtualbot_serial_remove,
-	//.suspend = virtualbot_serial_suspend,
-	//.resume = virtualbot_serial_resume,
-	.driver = {
-		.name = "virtualbot_usart",
-		.owner = THIS_MODULE,
-	},
-};
-
-
-static struct uart_driver virtualbot_uart = {
-	.owner		= THIS_MODULE,
-	.driver_name	= "virtualbot",
-	.dev_name	= "ttySVB",
-	.major		= TTY_MAJOR,
-	.minor		= 64,
-	.nr		= 1,
-	.cons		= NULL,
-	.tty_driver = NULL,
-};
-
-int __init virtualbot_init(void){
-
-	int rc;
-
-	rc = uart_register_driver( &virtualbot_uart );
-
-	if (rc){
-		printk( KERN_ERR "virtualbot: driver failed to register with code %d! ", rc );
-		return rc;
-	}
-
-	printk( KERN_INFO "virtualbot: initializing driver" );
-
-	port = kmalloc( GFP_KERNEL, sizeof(struct uart_port) );
-
-	// This is all fake initialization ...
-	port->iotype = UPIO_MEM;
-	port->flags = 0x0; // TODO: inspect all flags possible
-	port->ops = &virtualbot_uart_ops;
-	port->fifosize = 1; // Increase? No idea ...
-	port->line = 1; //??? Depends on platform_driver ... what to write here?
-	port->dev = NULL; // Probably can't be null ...
-	port->icount.tx = 0;
-	port->icount.rx = 0;
-
-	rc = uart_add_one_port(&virtualbot_uart, port);
-
-	if (rc){
-		printk( KERN_ERR "virtualbot: error on uart_add_one_port! Code = %d", rc);
-		kfree( port );
-
-		uart_unregister_driver( &virtualbot_uart );
-
-	 	return rc;
-	}
-
-	// uart_add_one_port(struct uart_driver * drv, struct uart_port * uport)
-
-	//platform_driver_register( &virtualbot_serial_driver );
-
-	printk( KERN_INFO "virtualbot: driver registered" );
-
-	return 0; 
-};
-
-
-void __exit virtualbot_exit(void){
-	/* 
-	 * Unregister the device 
-	 */
-	//platform_driver_unregister( &virtualbot_serial_driver );
-
-	uart_remove_one_port( &virtualbot_uart, port);
-
-	uart_unregister_driver( &virtualbot_uart );
-
-	kfree( port );
-
-	printk( KERN_INFO "virtualbot: device unregistered" );
-}
-
-#endif
-
-#if 0
-static int virtualbot_serial_probe(struct platform_device *pdev)
-{
 /*
-	struct atmel_uart_port *port;
-	port = &atmel_ports[pdev->id];
-	port->backup_imr = 0;
-	atmel_init_port(port, pdev);
-	uart_add_one_port(&atmel_uart, &port->uart);
-	platform_set_drvdata(pdev, port);
-*/
+ * Tiny TTY driver
+ *
+ * Copyright (C) 2002-2004 Greg Kroah-Hartman (greg@kroah.com)
+ *
+ *	This program is free software; you can redistribute it and/or modify
+ *	it under the terms of the GNU General Public License as published by
+ *	the Free Software Foundation, version 2 of the License.
+ *
+ * This driver shows how to create a minimal tty driver.  It does not rely on
+ * any backing hardware, but creates a timer that emulates data being received
+ * from some kind of hardware.
+ */
 
-	port = kmalloc( GFP_KERNEL, sizeof(struct uart_port) );
+#include <linux/kernel.h>
+#include <linux/errno.h>
+#include <linux/init.h>
+#include <linux/module.h>
+#include <linux/slab.h>
+#include <linux/wait.h>
+#include <linux/tty.h>
+#include <linux/tty_driver.h>
+#include <linux/tty_flip.h>
+#include <linux/serial.h>
+#include <linux/sched.h>
+#include <linux/sched/signal.h>
+#include <linux/seq_file.h>
+#include <linux/uaccess.h>
+#include <linux/version.h>
 
-	platform_set_drvdata(pdev, port);
-	
-	return 0;
-}
+#define DRIVER_VERSION "v2.0"
+#define DRIVER_AUTHOR "Greg Kroah-Hartman <greg@kroah.com>"
+#define DRIVER_DESC "Tiny TTY driver"
 
+/* Module information */
+MODULE_AUTHOR(DRIVER_AUTHOR);
+MODULE_DESCRIPTION(DRIVER_DESC);
+MODULE_LICENSE("GPL");
 
-static int virtualbot_serial_remove(struct platform_device *pdev)
-{
-	struct uart_port *port = platform_get_drvdata(pdev);
+#define VIRTUALBOT_DEBUG 1
 
-	platform_set_drvdata(pdev, NULL);
+#define DELAY_TIME		(HZ * 2)	/* 2 seconds per character */
+#define TINY_DATA_CHARACTER	't'
 
-	kfree(port);
+#define TINY_TTY_MAJOR		240	/* experimental range */
+#define TINY_TTY_MINORS		4	/* only have 4 devices */
 
-	//uart_remove_one_port(&atmel_uart, port);
+struct tiny_serial {
+	struct tty_struct	*tty;		/* pointer to the tty for this device */
+	int			open_count;	/* number of times this port has been opened */
+	struct mutex	mutex;		/* locks this structure */
+	struct timer_list	timer;
 
-	return 0;
-}
+	/* for tiocmget and tiocmset functions */
+	int			msr;		/* MSR shadow */
+	int			mcr;		/* MCR shadow */
 
-#endif
-
-#define RELEVANT_IFLAG(iflag) ((iflag) & (IGNBRK|BRKINT|IGNPAR|PARMRK|INPCK))
-
-struct virtualbot_serial {
-    struct tty_struct   *tty;   /* pointer to the tty for this device */
-    int         open_count; 	/* number of times this port has been opened */
-    struct semaphore    sem;    /* locks this structure */
-    struct timer_list   *timer;
+	/* for ioctl fun */
+	struct serial_struct	serial;
+	wait_queue_head_t	wait;
+	struct async_icount	icount;
 };
 
+static struct tiny_serial *tiny_table[TINY_TTY_MINORS];	/* initially all NULL */
+static struct tty_port tiny_tty_port[TINY_TTY_MINORS];
 
-struct virtualbot_serial* virtualbot_table[ VIRTUALBOT_MAX_DEVICES ];
 
-static struct tty_port virtualbot_tty_port[ VIRTUALBOT_MAX_DEVICES ];
+static void tiny_timer(struct timer_list *t)
+{
+	struct tiny_serial *tiny = from_timer(tiny, t, timer);
+	struct tty_struct *tty;
+	struct tty_port *port;
+	int i;
+	char data[1] = {TINY_DATA_CHARACTER};
+	int data_size = 1;
 
-static int virtualbot_open(struct tty_struct *tty, struct file *file){
+	if (!tiny)
+		return;
 
-    struct virtualbot_serial *virtualbot;
-    //struct timer_list *timer;
-    int index;
+	tty = tiny->tty;
+	port = tty->port;
 
+	/* send the data to the tty layer for users to read.  This doesn't
+	 * actually push the data through unless tty->low_latency is set */
+	for (i = 0; i < data_size; ++i) {
+		if (!tty_buffer_request_room(port, 1))
+			tty_flip_buffer_push(port);
+		tty_insert_flip_char(port, data[i], TTY_NORMAL);
+	}
+	tty_flip_buffer_push(port);
+
+	/* resubmit the timer again */
+	tiny->timer.expires = jiffies + DELAY_TIME;
+	add_timer(&tiny->timer);
+}
+
+static int tiny_open(struct tty_struct *tty, struct file *file)
+{
+	struct tiny_serial *tiny;
+	int index;
+
+	/* initialize the pointer in case something fails */
+	tty->driver_data = NULL;
+
+	/* get the serial object associated with this tty pointer */
 	index = tty->index;
+	tiny = tiny_table[index];
 
 #ifdef VIRTUALBOT_DEBUG
 	printk(KERN_INFO "virtualbot: open port %d", index);
 #endif		
 
-    /* initialize the pointer in case something fails */
-    tty->driver_data = NULL;
+	if (tiny == NULL) {
+		/* first time accessing this device, let's create it */
+		tiny = kmalloc(sizeof(*tiny), GFP_KERNEL);
+		if (!tiny)
+			return -ENOMEM;
 
-    virtualbot = virtualbot_table[index];
+		mutex_init(&tiny->mutex);
+		tiny->open_count = 0;
 
-    if (virtualbot == NULL) {
-        /* first time accessing this device, let's create it */
-        virtualbot = kmalloc(sizeof(*virtualbot), GFP_KERNEL);
-
-        if (!virtualbot)
-            return -ENOMEM;
-
-        sema_init( &virtualbot->sem, 1 );
-        virtualbot->open_count = 0;
-        virtualbot->timer = NULL;
-
-        virtualbot_table[ index ] = virtualbot;
-    }
-
-    //down(&virtualbot->sem);
-
- 	++virtualbot->open_count;
-    if (virtualbot->open_count == 1) {
-        /* this is the first time this port is opened */
-        /* do any hardware initialization needed here */
+		tiny_table[index] = tiny;
 	}
 
-    /* save our structure within the tty structure */
-    tty->driver_data = virtualbot;
-    virtualbot->tty = tty;	
+	mutex_lock(&tiny->mutex);
 
-	//up(&virtualbot->sem);
+	/* save our structure within the tty structure */
+	tty->driver_data = tiny;
+	tiny->tty = tty;
+
+	++tiny->open_count;
+	if (tiny->open_count == 1) {
+		/* this is the first time this port is opened */
+		/* do any hardware initialization needed here */
+
+		/* create our timer and submit it */
+		timer_setup(&tiny->timer, tiny_timer, 0);
+		tiny->timer.expires = jiffies + DELAY_TIME;
+		add_timer(&tiny->timer);
+	}
+
+	mutex_unlock(&tiny->mutex);
 
 #ifdef VIRTUALBOT_DEBUG
-	printk(KERN_INFO "virtualbot: open port %d success", index);
-#endif		
-
+	printk(KERN_INFO "virtualbot: open port %d finished", index);
+#endif			
 	return 0;
 }
 
-
-static void virtualbot_close(struct tty_struct *tty, struct file *file)
+static void do_close(struct tiny_serial *tiny)
 {
+	mutex_lock(&tiny->mutex);
 
-	struct virtualbot_serial *virtualbot = tty->driver_data;
-
-	int index = tty->index;
-
-#ifdef VIRTUALBOT_DEBUG
-	printk(KERN_INFO "virtualbot: closing port %d", index);
-#endif		
-
-    if (virtualbot){
-
-		down(&virtualbot->sem);
-
-		if (!virtualbot->open_count) {
-			/* port was never opened */
-			up(&virtualbot->sem);
-			goto exit;
-		}
-		
-		--(virtualbot->open_count);
-
-		if (virtualbot->open_count <= 0) {
-			/* The port is being closed by the last user. */
-			/* Do any hardware specific stuff here */
-
-
-
-			/* shut down our timer */
-			del_timer(virtualbot->timer);
-			goto exit;		
-		}
-
-	exit:
-
-#ifdef VIRTUALBOT_DEBUG
-		printk(KERN_INFO "virtualbot: closed port %d", index);
-#endif		
-		up(&virtualbot->sem);
-		return;
+	if (!tiny->open_count) {
+		/* port was never opened */
+		goto exit;
 	}
 
-    return;
-}
+	--tiny->open_count;
+	if (tiny->open_count <= 0) {
+		/* The port is being closed by the last user. */
+		/* Do any hardware specific stuff here */
 
-static int virtualbot_write(struct tty_struct *tty, 
-	const unsigned char *buffer, 
-	int count)
-{
-    struct virtualbot_serial *virtualbot = tty->driver_data;
-	int index = tty->index;
-    int i;
-    int retval = -EINVAL;
-
-#ifdef VIRTUALBOT_DEBUG
-	printk(KERN_INFO "virtualbot: write on port %d", index);
-#endif	
-
-    if (!virtualbot)
-        return -ENODEV;
-
-    down(&virtualbot->sem);
-
-    if (!virtualbot->open_count)
-        /* port was not opened */
-        goto exit;
-
-    /* fake sending the data out a hardware port by
-     * writing it to the kernel debug log.
-     */
-    printk(KERN_DEBUG "virtualbot: %s - ", __FUNCTION__);
-    for (i = 0; i < count; ++i)
-        printk("%02x ", buffer[i]);
-
-    printk("\n");
-        
+		/* shut down our timer */
+		del_timer(&tiny->timer);
+	}
 exit:
-    up(&virtualbot->sem);
-
-#ifdef VIRTUALBOT_DEBUG
-	printk(KERN_INFO "virtualbot: finished write on port %d", index);
-#endif		
-    return retval;
+	mutex_unlock(&tiny->mutex);
 }
 
-static unsigned int virtualbot_write_room(struct tty_struct *tty) 
+static void tiny_close(struct tty_struct *tty, struct file *file)
 {
-    struct virtualbot_serial *virtualbot = tty->driver_data;
-    int room = -EINVAL;
+	struct tiny_serial *tiny = tty->driver_data;
 
-    if (!virtualbot)
-        return -ENODEV;
+	pr_debug("virtualbot: close port %d", tty->index);
 
-    down(&virtualbot->sem);
-    
-    if (!virtualbot->open_count) {
-        /* port was not opened */
-        goto exit;
-    }
+	if (tiny){
+		do_close(tiny);
+		pr_debug("virtualbot: do_close port %d finished", tty->index);
+	}
+}
 
-    /* calculate how much room is left in the device */
-    room = 255;
+static int tiny_write(struct tty_struct *tty,
+		      const unsigned char *buffer, int count)
+{
+	struct tiny_serial *tiny = tty->driver_data;
+	int i;
+	int retval = -EINVAL;
+
+	if (!tiny)
+		return -ENODEV;
+
+	mutex_lock(&tiny->mutex);
+
+	if (!tiny->open_count)
+		/* port was not opened */
+		goto exit;
+
+	/* fake sending the data out a hardware port by
+	 * writing it to the kernel debug log.
+	 */
+	pr_debug("%s - ", __func__);
+	for (i = 0; i < count; ++i)
+		pr_info("%02x ", buffer[i]);
+	pr_info("\n");
 
 exit:
-    up(&virtualbot->sem);
-    return room;
+	mutex_unlock(&tiny->mutex);
+	return retval;
 }
 
-static void virtualbot_set_termios(
-	struct tty_struct *tty, 
-	struct ktermios *old_termios)
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0)) 
+static int tiny_write_room(struct tty_struct *tty)
+#else
+static unsigned int tiny_write_room(struct tty_struct *tty)
+#endif
 {
+	struct tiny_serial *tiny = tty->driver_data;
+	int room = -EINVAL;
 
-#ifdef VIRTUALBOT_DEBUG
-	printk(KERN_INFO "virtualbot: set_termios");
-#endif			
+	if (!tiny)
+		return -ENODEV;
+
+	mutex_lock(&tiny->mutex);
+
+	if (!tiny->open_count) {
+		/* port was not opened */
+		goto exit;
+	}
+
+	/* calculate how much room is left in the device */
+	room = 255;
+
+exit:
+	mutex_unlock(&tiny->mutex);
+	return room;
+}
+
+#define RELEVANT_IFLAG(iflag) ((iflag) & (IGNBRK|BRKINT|IGNPAR|PARMRK|INPCK))
+
+static void tiny_set_termios(struct tty_struct *tty, struct ktermios *old_termios)
+{
 	unsigned int cflag;
 
 	cflag = tty->termios.c_cflag;
@@ -613,125 +315,322 @@ static void virtualbot_set_termios(
 	}
 
 	/* get the baud rate wanted */
-	pr_debug(" - baud rate = %d", tty_get_baud_rate(tty));	
+	pr_debug(" - baud rate = %d", tty_get_baud_rate(tty));
+}
 
+/* Our fake UART values */
+#define MCR_DTR		0x01
+#define MCR_RTS		0x02
+#define MCR_LOOP	0x04
+#define MSR_CTS		0x08
+#define MSR_CD		0x10
+#define MSR_RI		0x20
+#define MSR_DSR		0x40
+
+static int tiny_tiocmget(struct tty_struct *tty)
+{
+	struct tiny_serial *tiny = tty->driver_data;
+
+	unsigned int result = 0;
+	unsigned int msr = tiny->msr;
+	unsigned int mcr = tiny->mcr;
+
+	result = ((mcr & MCR_DTR)  ? TIOCM_DTR  : 0) |	/* DTR is set */
+		((mcr & MCR_RTS)  ? TIOCM_RTS  : 0) |	/* RTS is set */
+		((mcr & MCR_LOOP) ? TIOCM_LOOP : 0) |	/* LOOP is set */
+		((msr & MSR_CTS)  ? TIOCM_CTS  : 0) |	/* CTS is set */
+		((msr & MSR_CD)   ? TIOCM_CAR  : 0) |	/* Carrier detect is set*/
+		((msr & MSR_RI)   ? TIOCM_RI   : 0) |	/* Ring Indicator is set */
+		((msr & MSR_DSR)  ? TIOCM_DSR  : 0);	/* DSR is set */
+
+	return result;
+}
+
+static int tiny_tiocmset(struct tty_struct *tty, unsigned int set,
+			 unsigned int clear)
+{
+	struct tiny_serial *tiny = tty->driver_data;
+	unsigned int mcr = tiny->mcr;
+
+	if (set & TIOCM_RTS)
+		mcr |= MCR_RTS;
+	if (set & TIOCM_DTR)
+		mcr |= MCR_RTS;
+
+	if (clear & TIOCM_RTS)
+		mcr &= ~MCR_RTS;
+	if (clear & TIOCM_DTR)
+		mcr &= ~MCR_RTS;
+
+	/* set the new MCR value in the device */
+	tiny->mcr = mcr;
+	return 0;
+}
+
+static int tiny_proc_show(struct seq_file *m, void *v)
+{
+	struct tiny_serial *tiny;
+	int i;
+
+	seq_printf(m, "tinyserinfo:1.0 driver:%s\n", DRIVER_VERSION);
+	for (i = 0; i < TINY_TTY_MINORS; ++i) {
+		tiny = tiny_table[i];
+		if (tiny == NULL)
+			continue;
+
+		seq_printf(m, "%d\n", i);
+	}
+
+	return 0;
+}
+
+#define tiny_ioctl tiny_ioctl_tiocgserial
+
+static int tiny_ioctl(struct tty_struct *tty, unsigned int cmd,
+		      unsigned long arg)
+{
+	struct tiny_serial *tiny = tty->driver_data;
+
+	if (cmd == TIOCGSERIAL) {
+		struct serial_struct tmp;
+
+		if (!arg)
+			return -EFAULT;
+
+		memset(&tmp, 0, sizeof(tmp));
+
+		tmp.type		= tiny->serial.type;
+		tmp.line		= tiny->serial.line;
+		tmp.port		= tiny->serial.port;
+		tmp.irq			= tiny->serial.irq;
+		tmp.flags		= ASYNC_SKIP_TEST | ASYNC_AUTO_IRQ;
+		tmp.xmit_fifo_size	= tiny->serial.xmit_fifo_size;
+		tmp.baud_base		= tiny->serial.baud_base;
+		tmp.close_delay		= 5*HZ;
+		tmp.closing_wait	= 30*HZ;
+		tmp.custom_divisor	= tiny->serial.custom_divisor;
+		tmp.hub6		= tiny->serial.hub6;
+		tmp.io_type		= tiny->serial.io_type;
+
+		if (copy_to_user((void __user *)arg, &tmp, sizeof(struct serial_struct)))
+			return -EFAULT;
+		return 0;
+	}
+	return -ENOIOCTLCMD;
+}
+#undef tiny_ioctl
+
+#define tiny_ioctl tiny_ioctl_tiocmiwait
+static int tiny_ioctl(struct tty_struct *tty, unsigned int cmd,
+		      unsigned long arg)
+{
+	struct tiny_serial *tiny = tty->driver_data;
+
+	if (cmd == TIOCMIWAIT) {
+		DECLARE_WAITQUEUE(wait, current);
+		struct async_icount cnow;
+		struct async_icount cprev;
+
+		cprev = tiny->icount;
+		while (1) {
+			add_wait_queue(&tiny->wait, &wait);
+			set_current_state(TASK_INTERRUPTIBLE);
+			schedule();
+			remove_wait_queue(&tiny->wait, &wait);
+
+			/* see if a signal woke us up */
+			if (signal_pending(current))
+				return -ERESTARTSYS;
+
+			cnow = tiny->icount;
+			if (cnow.rng == cprev.rng && cnow.dsr == cprev.dsr &&
+			    cnow.dcd == cprev.dcd && cnow.cts == cprev.cts)
+				return -EIO; /* no change => error */
+			if (((arg & TIOCM_RNG) && (cnow.rng != cprev.rng)) ||
+			    ((arg & TIOCM_DSR) && (cnow.dsr != cprev.dsr)) ||
+			    ((arg & TIOCM_CD)  && (cnow.dcd != cprev.dcd)) ||
+			    ((arg & TIOCM_CTS) && (cnow.cts != cprev.cts))) {
+				return 0;
+			}
+			cprev = cnow;
+		}
+
+	}
+	return -ENOIOCTLCMD;
+}
+#undef tiny_ioctl
+
+#define tiny_ioctl tiny_ioctl_tiocgicount
+static int tiny_ioctl(struct tty_struct *tty, unsigned int cmd,
+		      unsigned long arg)
+{
+	struct tiny_serial *tiny = tty->driver_data;
+
+	if (cmd == TIOCGICOUNT) {
+		struct async_icount cnow = tiny->icount;
+		struct serial_icounter_struct icount;
+
+		icount.cts	= cnow.cts;
+		icount.dsr	= cnow.dsr;
+		icount.rng	= cnow.rng;
+		icount.dcd	= cnow.dcd;
+		icount.rx	= cnow.rx;
+		icount.tx	= cnow.tx;
+		icount.frame	= cnow.frame;
+		icount.overrun	= cnow.overrun;
+		icount.parity	= cnow.parity;
+		icount.brk	= cnow.brk;
+		icount.buf_overrun = cnow.buf_overrun;
+
+		if (copy_to_user((void __user *)arg, &icount, sizeof(icount)))
+			return -EFAULT;
+		return 0;
+	}
+	return -ENOIOCTLCMD;
+}
+#undef tiny_ioctl
+
+/* the real tiny_ioctl function.  The above is done to get the small functions in the book */
+static int tiny_ioctl(struct tty_struct *tty, unsigned int cmd,
+		      unsigned long arg)
+{
+	switch (cmd) {
+	case TIOCGSERIAL:
+		return tiny_ioctl_tiocgserial(tty, cmd, arg);
+	case TIOCMIWAIT:
+		return tiny_ioctl_tiocmiwait(tty, cmd, arg);
+	case TIOCGICOUNT:
+		return tiny_ioctl_tiocgicount(tty, cmd, arg);
+	}
+
+	return -ENOIOCTLCMD;
 }
 
 
-
-struct ktermios tty_std_termios = {
-    .c_iflag = ICRNL | IXON,
-    .c_oflag = OPOST | ONLCR,
-    .c_cflag = B38400 | CS8 | CREAD | HUPCL,
-    .c_lflag = ISIG | ICANON | ECHO | ECHOE | ECHOK |
-               ECHOCTL | ECHOKE | IEXTEN,
-    .c_cc = INIT_C_CC
+static const struct tty_operations serial_ops = {
+	.open = tiny_open,
+	.close = tiny_close,
+	.write = tiny_write,
+	.write_room = tiny_write_room,
+	.set_termios = tiny_set_termios,
+	.proc_show = tiny_proc_show,
+	.tiocmget = tiny_tiocmget,
+	.tiocmset = tiny_tiocmset,
+	.ioctl = tiny_ioctl,
 };
 
-static struct tty_operations virtualbot_serial_ops = {
-    .open = virtualbot_open,
-    .close = virtualbot_close,
-    .write = virtualbot_write,
-    .write_room = virtualbot_write_room,
-    .set_termios = virtualbot_set_termios,
-};
+static struct tty_driver *tiny_tty_driver;
 
-static struct tty_driver *virtualbot_tty_driver;
+static int __init tiny_init(void)
+{
+	int retval;
+	int i;
 
-int __init virtualbot_init(void){
+	/* allocate the tty driver */
+	//tiny_tty_driver = alloc_tty_driver(TINY_TTY_MINORS);
 
-	int rc, i;
-
-	virtualbot_tty_driver = tty_alloc_driver(1,
+	tiny_tty_driver = tty_alloc_driver( TINY_TTY_MINORS,
 		TTY_DRIVER_DYNAMIC_ALLOC 
 		| TTY_DRIVER_REAL_RAW );
 
-/*
-	virtualbot_tty_driver = __tty_alloc_driver(1, 
-		THIS_MODULE,
-		TTY_DRIVER_DYNAMIC_ALLOC
-		);
-*/
+	if (!tiny_tty_driver)
+		return -ENOMEM;
 
-	if (!virtualbot_tty_driver){
+	/* initialize the tty driver */
+	tiny_tty_driver->owner = THIS_MODULE;
+	tiny_tty_driver->driver_name = "tiny_tty";
+	tiny_tty_driver->name = "ttyVB";
+	tiny_tty_driver->major = TINY_TTY_MAJOR,
+	tiny_tty_driver->type = TTY_DRIVER_TYPE_SERIAL,
+	tiny_tty_driver->subtype = SERIAL_TYPE_NORMAL,
+	tiny_tty_driver->flags = TTY_DRIVER_REAL_RAW ; // | TTY_DRIVER_DYNAMIC_DEV,
+	tiny_tty_driver->init_termios = tty_std_termios;
+	//tiny_tty_driver->init_termios.c_cflag = B9600 | CS8 | CREAD | HUPCL | CLOCAL;
 
-		printk( KERN_ERR "virtualbot: error allocating driver!" );
-		return -ENOMEM;	
+	tiny_tty_driver->init_termios = tty_std_termios;
+	tiny_tty_driver->init_termios.c_iflag = 0;
+	tiny_tty_driver->init_termios.c_oflag = 0;
+	tiny_tty_driver->init_termios.c_cflag = B38400 | CS8 | CREAD;
+	tiny_tty_driver->init_termios.c_lflag = 0;
+	tiny_tty_driver->init_termios.c_ispeed = 38400;
+	tiny_tty_driver->init_termios.c_ospeed = 38400;
+
+
+	tty_set_operations(tiny_tty_driver, &serial_ops);
+	
+	for (i = 0; i < TINY_TTY_MINORS; i++) {
+
+		struct device *tty_device = tty_register_device(tiny_tty_driver, i , NULL);
+
+		pr_debug("virtualbot: device %d initialized ", i);
+
+		tty_port_init(tiny_tty_port + i);
+
+		pr_debug("virtualbot: port %d initialized ", i);
+
+		tty_port_register_device(tiny_tty_port + i,
+			tiny_tty_driver, 
+			i, 
+			tty_device);
+
+		//tty_port_link_device(tiny_tty_port + i, tiny_tty_driver, i);
+
+		pr_debug("virtualbot: port %d linked to device", i);	
+
 	}
 
-	virtualbot_tty_driver->owner = THIS_MODULE;
-    virtualbot_tty_driver->driver_name = "virtualbot_tty";
-    virtualbot_tty_driver->name = "ttyVB";
-    //virtualbot_tty_driver->devfs_name = "tts/ttty%d";
-    virtualbot_tty_driver->major = 200,
-    virtualbot_tty_driver->type = TTY_DRIVER_TYPE_SERIAL,
-    virtualbot_tty_driver->subtype = SERIAL_TYPE_NORMAL,
-    virtualbot_tty_driver->flags = 
-		TTY_DRIVER_REAL_RAW
-		| TTY_DRIVER_DYNAMIC_DEV
-		;
-    virtualbot_tty_driver->init_termios = tty_std_termios;
-    virtualbot_tty_driver->init_termios.c_cflag = 
-		B9600 | CS8 | CREAD | HUPCL | CLOCAL;
+	/* register the tty driver */
+	retval = tty_register_driver(tiny_tty_driver);
 
-    tty_set_operations(virtualbot_tty_driver, &virtualbot_serial_ops);
+	if (retval) {
 
-	/*
-	for (i = 0; i < VIRTUALBOT_MAX_DEVICES; i++) {
-		tty_port_init( virtualbot_tty_port + i );
+		pr_err("virtualbot: failed to register tiny tty driver");
 
-		tty_port_link_device( virtualbot_tty_port + i, 
-			virtualbot_tty_driver, 
-			i);
-	}
-	*/	
+		tty_driver_kref_put(tiny_tty_driver);
 
-	rc = tty_register_driver(virtualbot_tty_driver);
-
-	if (rc) {
-		printk(KERN_ERR "virtualbot: failed to register driver");
-
-		tty_driver_kref_put(virtualbot_tty_driver);
-
-		return rc;
-	}	
-
-	printk( KERN_INFO "virtualbot: driver registered" );
-
-	for ( i =0; i < VIRTUALBOT_MAX_DEVICES; i++){
-
-		rc = tty_register_device(virtualbot_tty_driver, i, NULL);
-
-		if (rc){
-			return rc;
-		}
-
-		virtualbot_table[ i ] = NULL;
+		return retval;
 	}
 
-	return 0; 
-};
+	pr_debug("virtualbot: driver registered");
 
+	for (i = 0; i < TINY_TTY_MINORS; ++i){
 
-void __exit virtualbot_exit(void){
-	/* 
-	 * Unregister the device 
-	 */
-	//platform_driver_unregister( &virtualbot_serial_driver );
-	int i;
+		tty_register_device(tiny_tty_driver, i, NULL);
 
-	for ( i =0; i < VIRTUALBOT_MAX_DEVICES; i++){
+		pr_debug("virtualbot: tty device %d registered ", i);
 
-		tty_unregister_device(virtualbot_tty_driver, i);
+	}
 
-		virtualbot_table[ i ] = NULL;
-	}    
-
-	tty_unregister_driver(virtualbot_tty_driver);
-
-	printk( KERN_INFO "virtualbot: device unregistered" );
+	pr_info("virtualbot: driver initialized (" DRIVER_DESC " " DRIVER_VERSION  ")" );
+	return retval;
 }
 
+static void __exit tiny_exit(void)
+{
+	struct tiny_serial *tiny;
+	int i;
 
-module_init(virtualbot_init);
-module_exit(virtualbot_exit);
+	for (i = 0; i < TINY_TTY_MINORS; ++i) {
+		tty_unregister_device(tiny_tty_driver, i);
+		tty_port_destroy(tiny_tty_port + i);
+	}
+	tty_unregister_driver(tiny_tty_driver);
+
+	/* shut down all of the timers and free the memory */
+	for (i = 0; i < TINY_TTY_MINORS; ++i) {
+		tiny = tiny_table[i];
+		if (tiny) {
+			/* close the port */
+			while (tiny->open_count)
+				do_close(tiny);
+
+			/* shut down our timer and free the memory */
+			del_timer(&tiny->timer);
+			kfree(tiny);
+			tiny_table[i] = NULL;
+		}
+	}
+}
+
+module_init(tiny_init);
+module_exit(tiny_exit);
