@@ -23,6 +23,7 @@ try:
 		comm.isOpen
 		print (comm.readline().decode())
 		comm.close
-except:
+except Exception as inst:
 	print ("Error on conect "+PORT)
+	print(inst)
 	sys.exit(1)

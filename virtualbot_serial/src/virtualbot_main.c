@@ -354,6 +354,8 @@ static int virtualbot_serial_remove(struct platform_device *pdev)
 
 #endif
 
+#define RELEVANT_IFLAG(iflag) ((iflag) & (IGNBRK|BRKINT|IGNPAR|PARMRK|INPCK))
+
 struct virtualbot_serial {
     struct tty_struct   *tty;   /* pointer to the tty for this device */
     int         open_count; 	/* number of times this port has been opened */
@@ -364,26 +366,29 @@ struct virtualbot_serial {
 
 struct virtualbot_serial* virtualbot_table[ VIRTUALBOT_MAX_DEVICES ];
 
+static struct tty_port virtualbot_tty_port[ VIRTUALBOT_MAX_DEVICES ];
+
 static int virtualbot_open(struct tty_struct *tty, struct file *file){
 
     struct virtualbot_serial *virtualbot;
-    struct timer_list *timer;
+    //struct timer_list *timer;
     int index;
-
-    /* initialize the pointer in case something fails */
-    tty->driver_data = NULL;
 
 	index = tty->index;
 
 #ifdef VIRTUALBOT_DEBUG
 	printk(KERN_INFO "virtualbot: open port %d", index);
-#endif	
+#endif		
+
+    /* initialize the pointer in case something fails */
+    tty->driver_data = NULL;
 
     virtualbot = virtualbot_table[index];
 
     if (virtualbot == NULL) {
         /* first time accessing this device, let's create it */
         virtualbot = kmalloc(sizeof(*virtualbot), GFP_KERNEL);
+
         if (!virtualbot)
             return -ENOMEM;
 
@@ -394,7 +399,7 @@ static int virtualbot_open(struct tty_struct *tty, struct file *file){
         virtualbot_table[ index ] = virtualbot;
     }
 
-    down(&virtualbot->sem);
+    //down(&virtualbot->sem);
 
  	++virtualbot->open_count;
     if (virtualbot->open_count == 1) {
@@ -402,11 +407,11 @@ static int virtualbot_open(struct tty_struct *tty, struct file *file){
         /* do any hardware initialization needed here */
 	}
 
-	up(&virtualbot->sem);
-
     /* save our structure within the tty structure */
     tty->driver_data = virtualbot;
-    virtualbot->tty = tty;
+    virtualbot->tty = tty;	
+
+	//up(&virtualbot->sem);
 
 #ifdef VIRTUALBOT_DEBUG
 	printk(KERN_INFO "virtualbot: open port %d success", index);
@@ -421,6 +426,12 @@ static void virtualbot_close(struct tty_struct *tty, struct file *file)
 
 	struct virtualbot_serial *virtualbot = tty->driver_data;
 
+	int index = tty->index;
+
+#ifdef VIRTUALBOT_DEBUG
+	printk(KERN_INFO "virtualbot: closing port %d", index);
+#endif		
+
     if (virtualbot){
 
 		down(&virtualbot->sem);
@@ -428,7 +439,7 @@ static void virtualbot_close(struct tty_struct *tty, struct file *file)
 		if (!virtualbot->open_count) {
 			/* port was never opened */
 			up(&virtualbot->sem);
-			return;
+			goto exit;
 		}
 		
 		--(virtualbot->open_count);
@@ -437,11 +448,20 @@ static void virtualbot_close(struct tty_struct *tty, struct file *file)
 			/* The port is being closed by the last user. */
 			/* Do any hardware specific stuff here */
 
+
+
 			/* shut down our timer */
 			del_timer(virtualbot->timer);
-			up(&virtualbot->sem);
-			return;
+			goto exit;		
 		}
+
+	exit:
+
+#ifdef VIRTUALBOT_DEBUG
+		printk(KERN_INFO "virtualbot: closed port %d", index);
+#endif		
+		up(&virtualbot->sem);
+		return;
 	}
 
     return;
@@ -451,18 +471,149 @@ static int virtualbot_write(struct tty_struct *tty,
 	const unsigned char *buffer, 
 	int count)
 {
-    return 0;
+    struct virtualbot_serial *virtualbot = tty->driver_data;
+	int index = tty->index;
+    int i;
+    int retval = -EINVAL;
+
+#ifdef VIRTUALBOT_DEBUG
+	printk(KERN_INFO "virtualbot: write on port %d", index);
+#endif	
+
+    if (!virtualbot)
+        return -ENODEV;
+
+    down(&virtualbot->sem);
+
+    if (!virtualbot->open_count)
+        /* port was not opened */
+        goto exit;
+
+    /* fake sending the data out a hardware port by
+     * writing it to the kernel debug log.
+     */
+    printk(KERN_DEBUG "virtualbot: %s - ", __FUNCTION__);
+    for (i = 0; i < count; ++i)
+        printk("%02x ", buffer[i]);
+
+    printk("\n");
+        
+exit:
+    up(&virtualbot->sem);
+
+#ifdef VIRTUALBOT_DEBUG
+	printk(KERN_INFO "virtualbot: finished write on port %d", index);
+#endif		
+    return retval;
 }
 
 static unsigned int virtualbot_write_room(struct tty_struct *tty) 
 {
-    return 0;
+    struct virtualbot_serial *virtualbot = tty->driver_data;
+    int room = -EINVAL;
+
+    if (!virtualbot)
+        return -ENODEV;
+
+    down(&virtualbot->sem);
+    
+    if (!virtualbot->open_count) {
+        /* port was not opened */
+        goto exit;
+    }
+
+    /* calculate how much room is left in the device */
+    room = 255;
+
+exit:
+    up(&virtualbot->sem);
+    return room;
 }
 
 static void virtualbot_set_termios(
 	struct tty_struct *tty, 
-	struct ktermios *old)
+	struct ktermios *old_termios)
 {
+
+#ifdef VIRTUALBOT_DEBUG
+	printk(KERN_INFO "virtualbot: set_termios");
+#endif			
+	unsigned int cflag;
+
+	cflag = tty->termios.c_cflag;
+
+	/* check that they really want us to change something */
+	if (old_termios) {
+		if ((cflag == old_termios->c_cflag) &&
+		    (RELEVANT_IFLAG(tty->termios.c_iflag) ==
+		     RELEVANT_IFLAG(old_termios->c_iflag))) {
+			pr_debug(" - nothing to change...\n");
+			return;
+		}
+	}
+
+	/* get the byte size */
+	switch (cflag & CSIZE) {
+	case CS5:
+		pr_debug(" - data bits = 5\n");
+		break;
+	case CS6:
+		pr_debug(" - data bits = 6\n");
+		break;
+	case CS7:
+		pr_debug(" - data bits = 7\n");
+		break;
+	default:
+	case CS8:
+		pr_debug(" - data bits = 8\n");
+		break;
+	}
+
+	/* determine the parity */
+	if (cflag & PARENB)
+		if (cflag & PARODD)
+			pr_debug(" - parity = odd\n");
+		else
+			pr_debug(" - parity = even\n");
+	else
+		pr_debug(" - parity = none\n");
+
+	/* figure out the stop bits requested */
+	if (cflag & CSTOPB)
+		pr_debug(" - stop bits = 2\n");
+	else
+		pr_debug(" - stop bits = 1\n");
+
+	/* figure out the hardware flow control settings */
+	if (cflag & CRTSCTS)
+		pr_debug(" - RTS/CTS is enabled\n");
+	else
+		pr_debug(" - RTS/CTS is disabled\n");
+
+	/* determine software flow control */
+	/* if we are implementing XON/XOFF, set the start and
+	 * stop character in the device */
+	if (I_IXOFF(tty) || I_IXON(tty)) {
+		unsigned char stop_char  = STOP_CHAR(tty);
+		unsigned char start_char = START_CHAR(tty);
+
+		/* if we are implementing INBOUND XON/XOFF */
+		if (I_IXOFF(tty))
+			pr_debug(" - INBOUND XON/XOFF is enabled, "
+				"XON = %2x, XOFF = %2x", start_char, stop_char);
+		else
+			pr_debug(" - INBOUND XON/XOFF is disabled");
+
+		/* if we are implementing OUTBOUND XON/XOFF */
+		if (I_IXON(tty))
+			pr_debug(" - OUTBOUND XON/XOFF is enabled, "
+				"XON = %2x, XOFF = %2x", start_char, stop_char);
+		else
+			pr_debug(" - OUTBOUND XON/XOFF is disabled");
+	}
+
+	/* get the baud rate wanted */
+	pr_debug(" - baud rate = %d", tty_get_baud_rate(tty));	
 
 }
 
@@ -489,7 +640,7 @@ static struct tty_driver *virtualbot_tty_driver;
 
 int __init virtualbot_init(void){
 
-	int rc;
+	int rc, i;
 
 	virtualbot_tty_driver = tty_alloc_driver(1,
 		TTY_DRIVER_DYNAMIC_ALLOC 
@@ -510,20 +661,30 @@ int __init virtualbot_init(void){
 
 	virtualbot_tty_driver->owner = THIS_MODULE;
     virtualbot_tty_driver->driver_name = "virtualbot_tty";
-    virtualbot_tty_driver->name = "vbtty";
+    virtualbot_tty_driver->name = "ttyVB";
     //virtualbot_tty_driver->devfs_name = "tts/ttty%d";
     virtualbot_tty_driver->major = 200,
     virtualbot_tty_driver->type = TTY_DRIVER_TYPE_SERIAL,
     virtualbot_tty_driver->subtype = SERIAL_TYPE_NORMAL,
     virtualbot_tty_driver->flags = 
 		TTY_DRIVER_REAL_RAW
-//		| TTY_DRIVER_NO_DEVFS,
+		| TTY_DRIVER_DYNAMIC_DEV
 		;
     virtualbot_tty_driver->init_termios = tty_std_termios;
     virtualbot_tty_driver->init_termios.c_cflag = 
 		B9600 | CS8 | CREAD | HUPCL | CLOCAL;
 
-    tty_set_operations(virtualbot_tty_driver, &virtualbot_serial_ops);	
+    tty_set_operations(virtualbot_tty_driver, &virtualbot_serial_ops);
+
+	/*
+	for (i = 0; i < VIRTUALBOT_MAX_DEVICES; i++) {
+		tty_port_init( virtualbot_tty_port + i );
+
+		tty_port_link_device( virtualbot_tty_port + i, 
+			virtualbot_tty_driver, 
+			i);
+	}
+	*/	
 
 	rc = tty_register_driver(virtualbot_tty_driver);
 
@@ -533,11 +694,20 @@ int __init virtualbot_init(void){
 		tty_driver_kref_put(virtualbot_tty_driver);
 
 		return rc;
-	}
-
-	tty_register_device(virtualbot_tty_driver, 0, NULL);	
+	}	
 
 	printk( KERN_INFO "virtualbot: driver registered" );
+
+	for ( i =0; i < VIRTUALBOT_MAX_DEVICES; i++){
+
+		rc = tty_register_device(virtualbot_tty_driver, i, NULL);
+
+		if (rc){
+			return rc;
+		}
+
+		virtualbot_table[ i ] = NULL;
+	}
 
 	return 0; 
 };
@@ -548,8 +718,14 @@ void __exit virtualbot_exit(void){
 	 * Unregister the device 
 	 */
 	//platform_driver_unregister( &virtualbot_serial_driver );
+	int i;
 
-    tty_unregister_device(virtualbot_tty_driver, 0);
+	for ( i =0; i < VIRTUALBOT_MAX_DEVICES; i++){
+
+		tty_unregister_device(virtualbot_tty_driver, i);
+
+		virtualbot_table[ i ] = NULL;
+	}    
 
 	tty_unregister_driver(virtualbot_tty_driver);
 

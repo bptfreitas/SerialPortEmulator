@@ -6,10 +6,16 @@
 
 #define DEVICE_NAME "virtualbot"
 
-#define TTY_VIRTUALBOT_MAJOR 4
+#define VIRTUALBOT_TTY_NAME "ttySVB"
+
+#define TTY_VIRTUALBOT_MAJOR 200
 
 // Set this to 1 for extra debugging messages
-#define VIRTUALBOT_DEBUG
+#define VIRTUALBOT_DEBUG 1
+
+#define VIRTUALBOT_MAX_DEVICES 4
+
+
 
 struct virtualbot_dev {
 	// struct scull_qset *data;  /* Pointer to first quantum set */
