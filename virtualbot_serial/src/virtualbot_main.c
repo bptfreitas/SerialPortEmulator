@@ -42,7 +42,7 @@ MODULE_LICENSE("GPL");
 #define DELAY_TIME		(HZ * 2)	/* 2 seconds per character */
 #define TINY_DATA_CHARACTER	't'
 
-#define TINY_TTY_MAJOR		240	/* experimental range */
+#define TINY_TTY_MAJOR		200	/* experimental range */
 #define TINY_TTY_MINORS		4	/* only have 4 devices */
 
 struct tiny_serial {
@@ -62,8 +62,8 @@ struct tiny_serial {
 };
 
 static struct tiny_serial *tiny_table[TINY_TTY_MINORS];	/* initially all NULL */
-static struct tty_port tiny_tty_port[TINY_TTY_MINORS];
 
+static struct tty_port tiny_tty_port[TINY_TTY_MINORS];
 
 static void tiny_timer(struct timer_list *t)
 {
@@ -106,9 +106,9 @@ static int tiny_open(struct tty_struct *tty, struct file *file)
 	index = tty->index;
 	tiny = tiny_table[index];
 
-#ifdef VIRTUALBOT_DEBUG
-	printk(KERN_INFO "virtualbot: open port %d", index);
-#endif		
+
+	pr_debug("virtualbot: open port %d", index);
+
 
 	if (tiny == NULL) {
 		/* first time accessing this device, let's create it */
@@ -141,9 +141,9 @@ static int tiny_open(struct tty_struct *tty, struct file *file)
 
 	mutex_unlock(&tiny->mutex);
 
-#ifdef VIRTUALBOT_DEBUG
-	printk(KERN_INFO "virtualbot: open port %d finished", index);
-#endif			
+
+	pr_debug("virtualbot: finished open port %d", index);
+
 	return 0;
 }
 
@@ -524,14 +524,12 @@ static struct tty_driver *tiny_tty_driver;
 static int __init tiny_init(void)
 {
 	int retval;
-	int i;
+	unsigned i;
 
 	/* allocate the tty driver */
 	//tiny_tty_driver = alloc_tty_driver(TINY_TTY_MINORS);
 
-	tiny_tty_driver = tty_alloc_driver( TINY_TTY_MINORS,
-		TTY_DRIVER_DYNAMIC_ALLOC 
-		| TTY_DRIVER_REAL_RAW );
+	tiny_tty_driver = tty_alloc_driver( TINY_TTY_MINORS, TTY_DRIVER_REAL_RAW );
 
 	if (!tiny_tty_driver)
 		return -ENOMEM;
@@ -541,66 +539,58 @@ static int __init tiny_init(void)
 	tiny_tty_driver->driver_name = "tiny_tty";
 	tiny_tty_driver->name = "ttyVB";
 	tiny_tty_driver->major = TINY_TTY_MAJOR,
+	tiny_tty_driver->minor_start = 0,
 	tiny_tty_driver->type = TTY_DRIVER_TYPE_SERIAL,
 	tiny_tty_driver->subtype = SERIAL_TYPE_NORMAL,
-	tiny_tty_driver->flags = TTY_DRIVER_REAL_RAW ; // | TTY_DRIVER_DYNAMIC_DEV,
+	tiny_tty_driver->flags = TTY_DRIVER_REAL_RAW | TTY_DRIVER_DYNAMIC_DEV,
 	tiny_tty_driver->init_termios = tty_std_termios;
-	//tiny_tty_driver->init_termios.c_cflag = B9600 | CS8 | CREAD | HUPCL | CLOCAL;
+	tiny_tty_driver->init_termios.c_cflag = B9600 | CS8 | CREAD | HUPCL | CLOCAL;
 
-	tiny_tty_driver->init_termios = tty_std_termios;
-	tiny_tty_driver->init_termios.c_iflag = 0;
-	tiny_tty_driver->init_termios.c_oflag = 0;
-	tiny_tty_driver->init_termios.c_cflag = B38400 | CS8 | CREAD;
-	tiny_tty_driver->init_termios.c_lflag = 0;
-	tiny_tty_driver->init_termios.c_ispeed = 38400;
-	tiny_tty_driver->init_termios.c_ospeed = 38400;
-
+	//tiny_tty_driver->init_termios = tty_std_termios;
+	//tiny_tty_driver->init_termios.c_iflag = 0;
+	//tiny_tty_driver->init_termios.c_oflag = 0;
+	//tiny_tty_driver->init_termios.c_cflag = B38400 | CS8 | CREAD;
+	//tiny_tty_driver->init_termios.c_lflag = 0;
+	//tiny_tty_driver->init_termios.c_ispeed = 38400;
+	//tiny_tty_driver->init_termios.c_ospeed = 38400;
 
 	tty_set_operations(tiny_tty_driver, &serial_ops);
-	
+
+	pr_debug("virtualbot: set operations");
+
 	for (i = 0; i < TINY_TTY_MINORS; i++) {
-
-		struct device *tty_device = tty_register_device(tiny_tty_driver, i , NULL);
-
-		pr_debug("virtualbot: device %d initialized ", i);
 
 		tty_port_init(tiny_tty_port + i);
 
-		pr_debug("virtualbot: port %d initialized ", i);
+		pr_debug("virtualbot: port %i initiliazed", i);
 
-		tty_port_register_device(tiny_tty_port + i,
-			tiny_tty_driver, 
-			i, 
-			tty_device);
+		tty_port_register_device(tiny_tty_port + i, tiny_tty_driver, i, NULL);
 
-		//tty_port_link_device(tiny_tty_port + i, tiny_tty_driver, i);
-
-		pr_debug("virtualbot: port %d linked to device", i);	
-
-	}
+		pr_debug("virtualbot: port %i linked", i);
+	}	
 
 	/* register the tty driver */
 	retval = tty_register_driver(tiny_tty_driver);
 
 	if (retval) {
-
 		pr_err("virtualbot: failed to register tiny tty driver");
 
 		tty_driver_kref_put(tiny_tty_driver);
 
 		return retval;
 	}
-
 	pr_debug("virtualbot: driver registered");
 
-	for (i = 0; i < TINY_TTY_MINORS; ++i){
+	/*
+	for (i = 0; i < TINY_TTY_MINORS; i++){
 
 		tty_register_device(tiny_tty_driver, i, NULL);
 
 		pr_debug("virtualbot: tty device %d registered ", i);
 
 	}
-
+	*/	
+	
 	pr_info("virtualbot: driver initialized (" DRIVER_DESC " " DRIVER_VERSION  ")" );
 	return retval;
 }
