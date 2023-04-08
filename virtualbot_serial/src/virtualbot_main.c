@@ -1,14 +1,15 @@
 /*
- * Tiny TTY driver
+ * VirtualBot TTY driver
  *
- * Copyright (C) 2002-2004 Greg Kroah-Hartman (greg@kroah.com)
+ * Copyright (C) 2023 Bruno Policarpo (bruno.freitas@cefet-rj.br)
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by
  *	the Free Software Foundation, version 2 of the License.
  *
- * This driver shows how to create a minimal tty driver.  It does not rely on
- * any backing hardware, but creates a timer that emulates data being received
+ * This driver simulates the behaviour of a MAS agent embedded device communicating via a serial port
+ * It was based on Tiny TTY driver from https://github.com/martinezjavier/ldd3/blob/master/tty/tiny_tty.c
+ * It does not rely on any backing hardware, but creates a timer that emulates data being received
  * from some kind of hardware.
  */
 
@@ -28,9 +29,9 @@
 #include <linux/uaccess.h>
 #include <linux/version.h>
 
-#define DRIVER_VERSION "v2.0"
-#define DRIVER_AUTHOR "Greg Kroah-Hartman <greg@kroah.com>"
-#define DRIVER_DESC "Tiny TTY driver"
+#define DRIVER_VERSION "v0.0"
+#define DRIVER_AUTHOR "Bruno Policarpo <bruno.freitas@cefet-rj.br>"
+#define DRIVER_DESC "VirtualBot TTY Driver"
 
 /* Module information */
 MODULE_AUTHOR(DRIVER_AUTHOR);
@@ -61,9 +62,9 @@ struct tiny_serial {
 	struct async_icount	icount;
 };
 
-static struct tiny_serial *tiny_table[TINY_TTY_MINORS];	/* initially all NULL */
+static struct tiny_serial *tiny_table[ TINY_TTY_MINORS ];	/* initially all NULL */
 
-static struct tty_port tiny_tty_port[TINY_TTY_MINORS];
+static struct tty_port tiny_tty_port[ TINY_TTY_MINORS ];
 
 static void tiny_timer(struct timer_list *t)
 {
@@ -106,9 +107,7 @@ static int tiny_open(struct tty_struct *tty, struct file *file)
 	index = tty->index;
 	tiny = tiny_table[index];
 
-
 	pr_debug("virtualbot: open port %d", index);
-
 
 	if (tiny == NULL) {
 		/* first time accessing this device, let's create it */
@@ -135,12 +134,13 @@ static int tiny_open(struct tty_struct *tty, struct file *file)
 
 		/* create our timer and submit it */
 		timer_setup(&tiny->timer, tiny_timer, 0);
+
 		tiny->timer.expires = jiffies + DELAY_TIME;
+
 		add_timer(&tiny->timer);
 	}
 
 	mutex_unlock(&tiny->mutex);
-
 
 	pr_debug("virtualbot: finished open port %d", index);
 
