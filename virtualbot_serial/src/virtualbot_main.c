@@ -163,7 +163,7 @@ static int tiny_open(struct tty_struct *tty, struct file *file)
 
 static void do_close(struct tiny_serial *tiny)
 {
-	struct list_head *pos;
+	struct list_head *pos, *n;
 
 	pr_debug("virtualbot: do_close");
 
@@ -183,16 +183,16 @@ static void do_close(struct tiny_serial *tiny)
 		del_timer(&tiny->timer);
 
 		// Delete MAS signals list
-		list_for_each(pos, &tiny->MAS_signals_list_head ){
+		list_for_each_safe(pos, n, &tiny->MAS_signals_list_head ){
 
 			struct MAS_signal *signal = NULL;
 
 			signal = list_entry(pos, struct MAS_signal, MAS_signals_list);
 			
 			pr_debug("%c", signal->data );
+
+			list_del( pos );
 		}
-		
-		//list_del(&tiny->MAS_signals_list_head);
 	
 	}
 exit:
