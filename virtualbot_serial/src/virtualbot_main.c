@@ -46,6 +46,14 @@ MODULE_LICENSE("GPL");
 #define TINY_TTY_MAJOR		200	/* experimental range */
 #define TINY_TTY_MINORS		4	/* only have 4 devices */
 
+
+struct MAS_signal {
+
+	char data;
+    struct list_head MAS_signals_list;
+
+};
+
 struct tiny_serial {
 	struct tty_struct	*tty;		/* pointer to the tty for this device */
 	int			open_count;	/* number of times this port has been opened */
@@ -60,6 +68,9 @@ struct tiny_serial {
 	struct serial_struct	serial;
 	wait_queue_head_t	wait;
 	struct async_icount	icount;
+
+	/* for MAS agent */
+	struct list_head MAS_signals_list_head;
 };
 
 static struct tiny_serial *tiny_table[ TINY_TTY_MINORS ];	/* initially all NULL */
@@ -135,6 +146,9 @@ static int tiny_open(struct tty_struct *tty, struct file *file)
 		/* create our timer and submit it */
 		timer_setup(&tiny->timer, tiny_timer, 0);
 
+		/* MAS structure initialization */
+		INIT_LIST_HEAD( &tiny->MAS_signals_list_head );
+
 		tiny->timer.expires = jiffies + DELAY_TIME;
 
 		add_timer(&tiny->timer);
@@ -149,6 +163,10 @@ static int tiny_open(struct tty_struct *tty, struct file *file)
 
 static void do_close(struct tiny_serial *tiny)
 {
+	struct list_head *pos;
+
+	pr_debug("virtualbot: do_close");
+
 	mutex_lock(&tiny->mutex);
 
 	if (!tiny->open_count) {
@@ -163,8 +181,22 @@ static void do_close(struct tiny_serial *tiny)
 
 		/* shut down our timer */
 		del_timer(&tiny->timer);
+
+		// Delete MAS signals list
+		list_for_each(pos, &tiny->MAS_signals_list_head ){
+
+			struct MAS_signal *signal = NULL;
+
+			signal = list_entry(pos, struct MAS_signal, MAS_signals_list);
+			
+			pr_debug("%c", signal->data );
+		}
+		
+		//list_del(&tiny->MAS_signals_list_head);
+	
 	}
 exit:
+	pr_debug("virtualbot: do_close finished");
 	mutex_unlock(&tiny->mutex);
 }
 
@@ -187,6 +219,8 @@ static int tiny_write(struct tty_struct *tty,
 	int i;
 	int retval = -EINVAL;
 
+	struct MAS_signal *new_MAS_signal;	
+
 	if (!tiny)
 		return -ENODEV;
 
@@ -199,9 +233,21 @@ static int tiny_write(struct tty_struct *tty,
 	/* fake sending the data out a hardware port by
 	 * writing it to the kernel debug log.
 	 */
+
 	pr_debug("%s - ", __func__);
-	for (i = 0; i < count; ++i)
+	for (i = 0; i < count; ++i){
+
 		pr_info("%02x ", buffer[i]);
+
+		new_MAS_signal = kmalloc(sizeof(struct MAS_signal), GFP_KERNEL);
+
+		new_MAS_signal->data = buffer[i];
+
+		list_add( &new_MAS_signal->MAS_signals_list , &tiny->MAS_signals_list_head ) ;
+
+	}
+
+	retval = count;
 	pr_info("\n");
 
 exit:
@@ -580,16 +626,6 @@ static int __init tiny_init(void)
 		return retval;
 	}
 	pr_debug("virtualbot: driver registered");
-
-	/*
-	for (i = 0; i < TINY_TTY_MINORS; i++){
-
-		tty_register_device(tiny_tty_driver, i, NULL);
-
-		pr_debug("virtualbot: tty device %d registered ", i);
-
-	}
-	*/	
 	
 	pr_info("virtualbot: driver initialized (" DRIVER_DESC " " DRIVER_VERSION  ")" );
 	return retval;
@@ -602,13 +638,27 @@ static void __exit tiny_exit(void)
 
 	for (i = 0; i < TINY_TTY_MINORS; ++i) {
 		tty_unregister_device(tiny_tty_driver, i);
+		
+		pr_debug("virtualbot: device %d unregistered" , i);
+
 		tty_port_destroy(tiny_tty_port + i);
+
+		pr_debug("virtualbot: port %i destroyed", i);
 	}
+
 	tty_unregister_driver(tiny_tty_driver);
 
+	tty_driver_kref_put(tiny_tty_driver);
+
+	pr_debug("virtualbot: driver unregistered");
+
 	/* shut down all of the timers and free the memory */
-	for (i = 0; i < TINY_TTY_MINORS; ++i) {
+	for (i = 0; i < TINY_TTY_MINORS; i++) {
+
 		tiny = tiny_table[i];
+
+		pr_debug("virtualbot: freeing VB %i", i);
+
 		if (tiny) {
 			/* close the port */
 			while (tiny->open_count)
