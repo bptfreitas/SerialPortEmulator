@@ -29,6 +29,8 @@
 #include <linux/uaccess.h>
 #include <linux/version.h>
 
+#include <virtualbot.h>
+
 #define DRIVER_VERSION "v0.0"
 #define DRIVER_AUTHOR "Bruno Policarpo <bruno.freitas@cefet-rj.br>"
 #define DRIVER_DESC "VirtualBot TTY Driver"
@@ -38,18 +40,13 @@ MODULE_AUTHOR(DRIVER_AUTHOR);
 MODULE_DESCRIPTION(DRIVER_DESC);
 MODULE_LICENSE("GPL");
 
-#define VIRTUALBOT_DEBUG 1
-
 #define DELAY_TIME		(HZ * 2)	/* 2 seconds per character */
 #define TINY_DATA_CHARACTER	't'
-
-#define TINY_TTY_MAJOR		200	/* experimental range */
-#define TINY_TTY_MINORS		4	/* only have 4 devices */
 
 
 struct MAS_signal {
 
-	char data;
+	char data[ VIRTUALBOT_MAX_SIGNAL_LEN + 1 ];
     struct list_head MAS_signals_list;
 
 };
@@ -69,13 +66,15 @@ struct tiny_serial {
 	wait_queue_head_t	wait;
 	struct async_icount	icount;
 
-	/* for MAS agent */
-	struct list_head MAS_signals_list_head;
 };
 
-static struct tiny_serial *tiny_table[ TINY_TTY_MINORS ];	/* initially all NULL */
 
-static struct tty_port tiny_tty_port[ TINY_TTY_MINORS ];
+/* for MAS agent */
+static struct list_head *MAS_signals_list_head[ VIRTUALBOT_MAX_TTY_MINORS ];
+
+static struct tiny_serial *tiny_table[ VIRTUALBOT_MAX_TTY_MINORS ];	/* initially all NULL */
+
+static struct tty_port tiny_tty_port[ VIRTUALBOT_MAX_TTY_MINORS ];
 
 static void tiny_timer(struct timer_list *t)
 {
@@ -146,8 +145,17 @@ static int tiny_open(struct tty_struct *tty, struct file *file)
 		/* create our timer and submit it */
 		timer_setup(&tiny->timer, tiny_timer, 0);
 
-		/* MAS structure initialization */
-		INIT_LIST_HEAD( &tiny->MAS_signals_list_head );
+		/* 
+			MAS structure initialization. 
+			It will be initialized the first time the driver is openned
+			and stay alive on the driver until it is registered
+		*/
+		if ( MAS_signals_list_head[ tty->index ] == NULL ){
+
+			MAS_signals_list_head[ tty->index ] = kmalloc( sizeof( struct list_head ), GFP_KERNEL );
+
+			INIT_LIST_HEAD( MAS_signals_list_head[ tty->index ] );
+		}
 
 		tiny->timer.expires = jiffies + DELAY_TIME;
 
@@ -163,8 +171,6 @@ static int tiny_open(struct tty_struct *tty, struct file *file)
 
 static void do_close(struct tiny_serial *tiny)
 {
-	struct list_head *pos, *n;
-
 	pr_debug("virtualbot: do_close");
 
 	mutex_lock(&tiny->mutex);
@@ -181,19 +187,6 @@ static void do_close(struct tiny_serial *tiny)
 
 		/* shut down our timer */
 		del_timer(&tiny->timer);
-
-		// Delete MAS signals list
-		list_for_each_safe(pos, n, &tiny->MAS_signals_list_head ){
-
-			struct MAS_signal *signal = NULL;
-
-			signal = list_entry(pos, struct MAS_signal, MAS_signals_list);
-			
-			pr_debug("%c", signal->data );
-
-			list_del( pos );
-		}
-	
 	}
 exit:
 	pr_debug("virtualbot: do_close finished");
@@ -216,7 +209,7 @@ static int tiny_write(struct tty_struct *tty,
 		      const unsigned char *buffer, int count)
 {
 	struct tiny_serial *tiny = tty->driver_data;
-	int i;
+	int i, buffer_len, index = tty->index;
 	int retval = -EINVAL;
 
 	struct MAS_signal *new_MAS_signal;	
@@ -234,18 +227,28 @@ static int tiny_write(struct tty_struct *tty,
 	 * writing it to the kernel debug log.
 	 */
 
-	pr_debug("%s - ", __func__);
-	for (i = 0; i < count; ++i){
+	buffer_len = ( count < VIRTUALBOT_MAX_SIGNAL_LEN) ? 
+		count : VIRTUALBOT_MAX_SIGNAL_LEN;
+
+	pr_debug("virtualbot: %s - writing %d length of data", __func__, count);
+
+	new_MAS_signal = kmalloc(sizeof(struct MAS_signal), GFP_KERNEL);
+
+	for ( i = 0; i < buffer_len; i++ ){
 
 		pr_info("%02x ", buffer[i]);
 
-		new_MAS_signal = kmalloc(sizeof(struct MAS_signal), GFP_KERNEL);
-
-		new_MAS_signal->data = buffer[i];
-
-		list_add( &new_MAS_signal->MAS_signals_list , &tiny->MAS_signals_list_head ) ;
-
+		new_MAS_signal->data[ i ] = buffer[ i ];
+		
 	}
+
+	if ( count > VIRTUALBOT_MAX_SIGNAL_LEN ){
+		pr_warn("virtualbot: signal length is greater than maximum of %d - truncating", VIRTUALBOT_MAX_SIGNAL_LEN);
+	}
+
+	new_MAS_signal->data[ i ] = '\n';
+
+	list_add( &new_MAS_signal->MAS_signals_list , MAS_signals_list_head[ index ] ) ;
 
 	retval = count;
 	pr_info("\n");
@@ -419,7 +422,7 @@ static int tiny_proc_show(struct seq_file *m, void *v)
 	int i;
 
 	seq_printf(m, "tinyserinfo:1.0 driver:%s\n", DRIVER_VERSION);
-	for (i = 0; i < TINY_TTY_MINORS; ++i) {
+	for (i = 0; i < VIRTUALBOT_MAX_TTY_MINORS; ++i) {
 		tiny = tiny_table[i];
 		if (tiny == NULL)
 			continue;
@@ -575,16 +578,17 @@ static int __init tiny_init(void)
 	/* allocate the tty driver */
 	//tiny_tty_driver = alloc_tty_driver(TINY_TTY_MINORS);
 
-	tiny_tty_driver = tty_alloc_driver( TINY_TTY_MINORS, TTY_DRIVER_REAL_RAW );
+	tiny_tty_driver = tty_alloc_driver( VIRTUALBOT_MAX_TTY_MINORS, \
+		TTY_DRIVER_REAL_RAW );
 
 	if (!tiny_tty_driver)
 		return -ENOMEM;
 
 	/* initialize the tty driver */
 	tiny_tty_driver->owner = THIS_MODULE;
-	tiny_tty_driver->driver_name = "tiny_tty";
+	tiny_tty_driver->driver_name = VIRTUALBOT_DRIVER_NAME;
 	tiny_tty_driver->name = "ttyVB";
-	tiny_tty_driver->major = TINY_TTY_MAJOR,
+	tiny_tty_driver->major = VIRTUALBOT_TTY_MAJOR,
 	tiny_tty_driver->minor_start = 0,
 	tiny_tty_driver->type = TTY_DRIVER_TYPE_SERIAL,
 	tiny_tty_driver->subtype = SERIAL_TYPE_NORMAL,
@@ -604,7 +608,7 @@ static int __init tiny_init(void)
 
 	pr_debug("virtualbot: set operations");
 
-	for (i = 0; i < TINY_TTY_MINORS; i++) {
+	for (i = 0; i < VIRTUALBOT_MAX_TTY_MINORS; i++) {
 
 		tty_port_init(tiny_tty_port + i);
 
@@ -613,6 +617,9 @@ static int __init tiny_init(void)
 		tty_port_register_device(tiny_tty_port + i, tiny_tty_driver, i, NULL);
 
 		pr_debug("virtualbot: port %i linked", i);
+
+		// Starting the MAS signal list with a NULL pointer
+		MAS_signals_list_head[ i ] = NULL;
 	}	
 
 	/* register the tty driver */
@@ -636,7 +643,9 @@ static void __exit tiny_exit(void)
 	struct tiny_serial *tiny;
 	int i;
 
-	for (i = 0; i < TINY_TTY_MINORS; ++i) {
+	struct list_head *pos, *n;
+
+	for (i = 0; i < VIRTUALBOT_MAX_TTY_MINORS; ++i) {
 		tty_unregister_device(tiny_tty_driver, i);
 		
 		pr_debug("virtualbot: device %d unregistered" , i);
@@ -653,7 +662,7 @@ static void __exit tiny_exit(void)
 	pr_debug("virtualbot: driver unregistered");
 
 	/* shut down all of the timers and free the memory */
-	for (i = 0; i < TINY_TTY_MINORS; i++) {
+	for (i = 0; i < VIRTUALBOT_MAX_TTY_MINORS; i++) {
 
 		tiny = tiny_table[i];
 
@@ -668,6 +677,23 @@ static void __exit tiny_exit(void)
 			del_timer(&tiny->timer);
 			kfree(tiny);
 			tiny_table[i] = NULL;
+		}
+
+		if ( MAS_signals_list_head[ i ] != NULL ) {
+
+			// Delete MAS signals list 
+			list_for_each_safe(pos, n, MAS_signals_list_head[ i ] ){
+
+				struct MAS_signal *signal = NULL;
+
+				signal = list_entry(pos, struct MAS_signal, MAS_signals_list);
+						
+				pr_debug("virtualbot: delete %s", signal->data );
+
+				list_del( pos );
+			}
+
+			kfree( MAS_signals_list_head[ i ] );
 		}
 	}
 }
