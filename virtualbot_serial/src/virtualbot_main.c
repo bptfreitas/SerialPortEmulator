@@ -29,6 +29,8 @@
 #include <linux/uaccess.h>
 #include <linux/version.h>
 
+#include <linux/string.h>
+
 #include <virtualbot.h>
 
 #define DRIVER_VERSION "v0.0"
@@ -43,13 +45,15 @@ MODULE_LICENSE("GPL");
 #define DELAY_TIME		(HZ * 2)	/* 2 seconds per character */
 #define TINY_DATA_CHARACTER	't'
 
-
 struct MAS_signal {
 
-	char data[ VIRTUALBOT_MAX_SIGNAL_LEN + 1 ];
+	char data[ VIRTUALBOT_MAX_SIGNAL_LEN + 2 ];
+
     struct list_head MAS_signals_list;
 
 };
+
+static int MAS_signals_count = 0;
 
 struct tiny_serial {
 	struct tty_struct	*tty;		/* pointer to the tty for this device */
@@ -63,7 +67,9 @@ struct tiny_serial {
 
 	/* for ioctl fun */
 	struct serial_struct	serial;
+
 	wait_queue_head_t	wait;
+	
 	struct async_icount	icount;
 
 };
@@ -148,7 +154,8 @@ static int tiny_open(struct tty_struct *tty, struct file *file)
 		/* 
 			MAS structure initialization. 
 			It will be initialized the first time the driver is openned
-			and stay alive on the driver until it is registered
+			and stay alive on the driver until it is unregistered with 
+			modprobe -r
 		*/
 		if ( MAS_signals_list_head[ tty->index ] == NULL ){
 
@@ -223,35 +230,55 @@ static int tiny_write(struct tty_struct *tty,
 		/* port was not opened */
 		goto exit;
 
+	// discarding the carriage return and new line the tty core is sending
+	if ( count == 2 && buffer[0] == '\r' && buffer[1]=='\n' ){
+		retval = 2;
+		goto exit;
+	}
+
 	/* fake sending the data out a hardware port by
 	 * writing it to the kernel debug log.
 	 */
 
-	buffer_len = ( count < VIRTUALBOT_MAX_SIGNAL_LEN) ? 
-		count : VIRTUALBOT_MAX_SIGNAL_LEN;
+	// TODO: race condition here!
+	if (MAS_signals_count < VIRTUALBOT_TOTAL_SIGNALS ){
 
-	pr_debug("virtualbot: %s - writing %d length of data", __func__, count);
+		buffer_len = ( count < VIRTUALBOT_MAX_SIGNAL_LEN) ? 
+			count : VIRTUALBOT_MAX_SIGNAL_LEN;
 
-	new_MAS_signal = kmalloc(sizeof(struct MAS_signal), GFP_KERNEL);
+		if ( count > VIRTUALBOT_MAX_SIGNAL_LEN ){
+			pr_warn("virtualbot: signal length (%d) is greater than maximum (%d) - discarding", 
+				count,
+				VIRTUALBOT_MAX_SIGNAL_LEN );
 
-	for ( i = 0; i < buffer_len; i++ ){
+			for ( i = 0; i < buffer_len; i++ ){
+				pr_warn("%02x ", buffer[i]);
+			}
+			retval = 0;
+			goto exit;
+		}			
 
-		pr_info("%02x ", buffer[i]);
+		pr_debug("virtualbot: %s - writing %d length of data", __func__, count);		
 
-		new_MAS_signal->data[ i ] = buffer[ i ];
-		
+		new_MAS_signal = kmalloc(sizeof(struct MAS_signal), GFP_KERNEL);
+
+		for ( i = 0; i < buffer_len; i++ ){
+			pr_info("%02x ", buffer[i]);
+		}
+
+		strcpy( new_MAS_signal->data, 
+			buffer
+			);
+
+		list_add( &new_MAS_signal->MAS_signals_list , MAS_signals_list_head[ index ] ) ;
+
+		retval = count;
+		pr_info("\n");
+	} else {
+		// Maximum number of signals stored achieved - warn then exit
+		pr_warn("virtualbot: maximum number of stored signals achieved");
+		retval = 0;
 	}
-
-	if ( count > VIRTUALBOT_MAX_SIGNAL_LEN ){
-		pr_warn("virtualbot: signal length is greater than maximum of %d - truncating", VIRTUALBOT_MAX_SIGNAL_LEN);
-	}
-
-	new_MAS_signal->data[ i ] = '\n';
-
-	list_add( &new_MAS_signal->MAS_signals_list , MAS_signals_list_head[ index ] ) ;
-
-	retval = count;
-	pr_info("\n");
 
 exit:
 	mutex_unlock(&tiny->mutex);
