@@ -21,6 +21,15 @@
 // Maximum number of characters for a signal
 #define VIRTUALBOT_MAX_SIGNAL_LEN 10
 
+/*
+	Maximum number of signals that can be stored
+
+	Since the driver won't release its allocated memory when the tty port 
+	is closed it is important to have a safeguard against unlimited kernel
+	memory allocation to prevent system colapse
+*/
+#define VIRTUALBOT_TOTAL_SIGNALS 10
+
 struct virtualbot_dev {
 	// struct scull_qset *data;  /* Pointer to first quantum set */
 	//int quantum;              /* the current quantum size */
