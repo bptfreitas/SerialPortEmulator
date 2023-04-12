@@ -2,6 +2,21 @@
 
 import sys
 import serial
+import re
+
+# This class is to read the VirtualBot device header and set the test parameters accordienly
+
+class ReadVirtualBotParameters:
+    
+    def __init__(self):
+
+        self.__fileName = '../include/virtualbot.h'
+
+        with open(self.__fileName, 'r') as f:
+            contents = f.read();
+
+
+
 
 """ try:
 	comm = serial.Serial("/dev/ttyVB0", 9600)
