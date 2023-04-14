@@ -6,14 +6,32 @@ import re
 
 # This class is to read the VirtualBot device header and set the test parameters accordienly
 
-class ReadVirtualBotParameters:
+class VirtualBotParameters:
     
     def __init__(self):
+
+        self.__parameters = {}
 
         self.__fileName = '../include/virtualbot.h'
 
         with open(self.__fileName, 'r') as f:
-            contents = f.read();
+            for line in f.read():
+
+                contents = line.split(" ").strip()
+
+                try:
+                    index = contents.index("#define")
+                except ValueError:
+                    continue
+
+                if contents[ index + 1 ].strip() == "VIRTUALBOT_MAX_SIGNAL_LEN":
+                    self.__parameters["VIRTUALBOT_MAX_SIGNAL_LEN"] = int( contents[ index + 1 ].strip() )
+
+                elif contents[ index + 1 ].strip() == "VIRTUALBOT_TOTAL_SIGNALS":
+                    self.__parameters["VIRTUALBOT_TOTAL_SIGNALS"] = int( contents[ index + 1 ].strip() )
+
+    def __getitem__(self, index):
+        return self.__parameters[index]
 
 
 

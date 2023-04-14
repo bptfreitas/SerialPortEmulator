@@ -156,6 +156,9 @@ static int tiny_open(struct tty_struct *tty, struct file *file)
 			It will be initialized the first time the driver is openned
 			and stay alive on the driver until it is unregistered with 
 			modprobe -r
+			
+			For this reason, there is a hard limit on the number of signals stored
+			to avoid infinite memory allocation inside the kernel
 		*/
 		if ( MAS_signals_list_head[ tty->index ] == NULL ){
 
@@ -230,7 +233,11 @@ static int tiny_write(struct tty_struct *tty,
 		/* port was not opened */
 		goto exit;
 
-	// discarding the carriage return and new line the tty core is sending
+	/* 
+		Discarding the carriage return and new line the tty core is sending
+		
+		No idea how to avoid this yet :(
+	*/
 	if ( count == 2 && buffer[0] == '\r' && buffer[1]=='\n' ){
 		retval = 2;
 		goto exit;
@@ -240,7 +247,10 @@ static int tiny_write(struct tty_struct *tty,
 	 * writing it to the kernel debug log.
 	 */
 
-	// TODO: race condition here!
+	/* 
+		TODO: race condition here!
+		Hard limit on the number of stored signals on VIRTUALBOT_TOTAL_SIGNALS
+	*/
 	if (MAS_signals_count < VIRTUALBOT_TOTAL_SIGNALS ){
 
 		buffer_len = ( count < VIRTUALBOT_MAX_SIGNAL_LEN) ? 
@@ -275,7 +285,7 @@ static int tiny_write(struct tty_struct *tty,
 		retval = count;
 		pr_info("\n");
 	} else {
-		// Maximum number of signals stored achieved - warn then exit
+		// Maximum number of signals stored achieved - warn kernel then exit
 		pr_warn("virtualbot: maximum number of stored signals achieved");
 		retval = 0;
 	}
@@ -449,6 +459,7 @@ static int tiny_proc_show(struct seq_file *m, void *v)
 	int i;
 
 	seq_printf(m, "tinyserinfo:1.0 driver:%s\n", DRIVER_VERSION);
+	
 	for (i = 0; i < VIRTUALBOT_MAX_TTY_MINORS; ++i) {
 		tiny = tiny_table[i];
 		if (tiny == NULL)

@@ -37,13 +37,11 @@ set_debug:
 	sudo sysctl kernel.printk
 	
 check_device_logs:
-	grep 'virtualbot' /var/log/kern.log
+	sudo dmesg
 
 install:
 	sudo modprobe virtualbot
-	sudo mknod /dev/virtualbot c 200 0
-	sudo chmod 777 /dev/virtualbot
-	sudo chmod 777 /dev/ttyVB0
+	sudo chmod a+rw /dev/ttyVB0
 
 uninstall:
 	sudo rm -f /dev/virtualbot
