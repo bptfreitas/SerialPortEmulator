@@ -12,6 +12,8 @@
 
 #define VIRTUALBOT_TTY_MAJOR 200
 
+#define VIRTUALBOT_COMM_TTY_MAJOR (VIRTUALBOT_TTY_MAJOR + 1)
+
 // Set this to 1 for extra debugging messages
 #define VIRTUALBOT_DEBUG 1
 
@@ -19,7 +21,7 @@
 #define VIRTUALBOT_MAX_TTY_MINORS 4
 
 // Maximum number of characters for a signal
-#define VIRTUALBOT_MAX_SIGNAL_LEN 10
+#define VIRTUALBOT_MAX_SIGNAL_LEN 262
 
 /*
 	Maximum number of signals that can be stored

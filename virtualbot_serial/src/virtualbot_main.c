@@ -61,6 +61,8 @@ struct tiny_serial {
 	struct mutex	mutex;		/* locks this structure */
 	struct timer_list	timer;
 
+	int created; 
+
 	/* for tiocmget and tiocmset functions */
 	int			msr;		/* MSR shadow */
 	int			mcr;		/* MCR shadow */
@@ -71,7 +73,6 @@ struct tiny_serial {
 	wait_queue_head_t	wait;
 	
 	struct async_icount	icount;
-
 };
 
 
@@ -81,6 +82,8 @@ static struct list_head *MAS_signals_list_head[ VIRTUALBOT_MAX_TTY_MINORS ];
 static struct tiny_serial *tiny_table[ VIRTUALBOT_MAX_TTY_MINORS ];	/* initially all NULL */
 
 static struct tty_port tiny_tty_port[ VIRTUALBOT_MAX_TTY_MINORS ];
+
+static struct tty_port vb_comm_tty_port[ VIRTUALBOT_MAX_TTY_MINORS ];
 
 static void tiny_timer(struct timer_list *t)
 {
@@ -100,8 +103,11 @@ static void tiny_timer(struct timer_list *t)
 	/* send the data to the tty layer for users to read.  This doesn't
 	 * actually push the data through unless tty->low_latency is set */
 	for (i = 0; i < data_size; ++i) {
+		pr_debug("virtualbot: flip buffer write");
+
 		if (!tty_buffer_request_room(port, 1))
 			tty_flip_buffer_push(port);
+
 		tty_insert_flip_char(port, data[i], TTY_NORMAL);
 	}
 	tty_flip_buffer_push(port);
@@ -135,21 +141,8 @@ static int tiny_open(struct tty_struct *tty, struct file *file)
 		tiny->open_count = 0;
 
 		tiny_table[index] = tiny;
-	}
 
-	mutex_lock(&tiny->mutex);
-
-	/* save our structure within the tty structure */
-	tty->driver_data = tiny;
-	tiny->tty = tty;
-
-	++tiny->open_count;
-	if (tiny->open_count == 1) {
-		/* this is the first time this port is opened */
-		/* do any hardware initialization needed here */
-
-		/* create our timer and submit it */
-		timer_setup(&tiny->timer, tiny_timer, 0);
+		mutex_lock(&tiny->mutex);
 
 		/* 
 			MAS structure initialization. 
@@ -167,9 +160,28 @@ static int tiny_open(struct tty_struct *tty, struct file *file)
 			INIT_LIST_HEAD( MAS_signals_list_head[ tty->index ] );
 		}
 
+
+		/* create our timer and submit it */
+		timer_setup(&tiny->timer, tiny_timer, 0);		
+
 		tiny->timer.expires = jiffies + DELAY_TIME;
 
-		add_timer(&tiny->timer);
+		//add_timer(&tiny->timer);
+
+	} else {
+
+
+		mutex_lock(&tiny->mutex);
+	}	
+
+	/* save our structure within the tty structure */
+	tty->driver_data = tiny;
+	tiny->tty = tty;
+
+	++tiny->open_count;
+	if (tiny->open_count == 1 ) {
+		/* this is the first time this port is opened */
+		/* do any hardware initialization needed here */
 	}
 
 	mutex_unlock(&tiny->mutex);
@@ -196,7 +208,7 @@ static void do_close(struct tiny_serial *tiny)
 		/* Do any hardware specific stuff here */
 
 		/* shut down our timer */
-		del_timer(&tiny->timer);
+		// del_timer(&tiny->timer);
 	}
 exit:
 	pr_debug("virtualbot: do_close finished");
@@ -608,6 +620,8 @@ static const struct tty_operations serial_ops = {
 
 static struct tty_driver *tiny_tty_driver;
 
+static struct tty_driver *vb_comm_tty_driver;
+
 static int __init tiny_init(void)
 {
 	int retval;
@@ -615,6 +629,13 @@ static int __init tiny_init(void)
 
 	/* allocate the tty driver */
 	//tiny_tty_driver = alloc_tty_driver(TINY_TTY_MINORS);
+
+	/*
+	 * Initializing the VirtialBot driver
+	 * 
+	 * This is the main hardware emulation device
+	 * 
+	*/
 
 	tiny_tty_driver = tty_alloc_driver( VIRTUALBOT_MAX_TTY_MINORS, \
 		TTY_DRIVER_REAL_RAW );
@@ -624,7 +645,7 @@ static int __init tiny_init(void)
 
 	/* initialize the tty driver */
 	tiny_tty_driver->owner = THIS_MODULE;
-	tiny_tty_driver->driver_name = VIRTUALBOT_DRIVER_NAME;
+	tiny_tty_driver->driver_name = "virtualbot_tty";
 	tiny_tty_driver->name = "ttyVB";
 	tiny_tty_driver->major = VIRTUALBOT_TTY_MAJOR,
 	tiny_tty_driver->minor_start = 0,
@@ -652,13 +673,16 @@ static int __init tiny_init(void)
 
 		pr_debug("virtualbot: port %i initiliazed", i);
 
-		tty_port_register_device(tiny_tty_port + i, tiny_tty_driver, i, NULL);
+		tty_port_register_device(tiny_tty_port + i, 
+			tiny_tty_driver, 
+			i, 
+			NULL);
 
 		pr_debug("virtualbot: port %i linked", i);
 
 		// Starting the MAS signal list with a NULL pointer
 		MAS_signals_list_head[ i ] = NULL;
-	}	
+	}
 
 	/* register the tty driver */
 	retval = tty_register_driver(tiny_tty_driver);
@@ -670,9 +694,70 @@ static int __init tiny_init(void)
 
 		return retval;
 	}
-	pr_debug("virtualbot: driver registered");
 	
 	pr_info("virtualbot: driver initialized (" DRIVER_DESC " " DRIVER_VERSION  ")" );
+
+	/*******
+	 * 
+	 * Initializing the VirtualBot Commander
+	 * 
+	 * This is the main interface between
+	 * 
+	*/
+
+	vb_comm_tty_driver = tty_alloc_driver( VIRTUALBOT_MAX_TTY_MINORS, \
+		TTY_DRIVER_REAL_RAW );
+
+	if (!vb_comm_tty_driver){
+		retval = -ENOMEM;
+	}
+
+	/* initialize the driver */
+	vb_comm_tty_driver->owner = THIS_MODULE;
+	vb_comm_tty_driver->driver_name = "vb-comm";
+	vb_comm_tty_driver->name = "ttyVBCom";
+	vb_comm_tty_driver->major = VIRTUALBOT_COMM_TTY_MAJOR,
+	vb_comm_tty_driver->minor_start = 0,
+	vb_comm_tty_driver->type = TTY_DRIVER_TYPE_SERIAL,
+	vb_comm_tty_driver->subtype = SERIAL_TYPE_NORMAL,
+	vb_comm_tty_driver->flags = TTY_DRIVER_REAL_RAW | TTY_DRIVER_DYNAMIC_DEV,
+	vb_comm_tty_driver->init_termios = tty_std_termios;
+	vb_comm_tty_driver->init_termios.c_cflag = B9600 | CS8 | CREAD | HUPCL | CLOCAL;		
+
+	tty_set_operations(vb_comm_tty_driver, 
+		&serial_ops);
+
+	pr_debug("virtualbot-comm: set operations");
+
+	for (i = 0; i < VIRTUALBOT_MAX_TTY_MINORS; i++) {
+
+		tty_port_init(vb_comm_tty_port + i);
+
+		pr_debug("virtualbot-comm: port %i initiliazed", i);
+
+		tty_port_register_device(vb_comm_tty_port + i, 
+			vb_comm_tty_driver, 
+			i, 
+			NULL);
+
+		pr_debug("virtualbot-comm: port %i linked", i);
+	}
+
+
+	/* register the tty driver */
+	retval = tty_register_driver(vb_comm_tty_driver);
+
+	if (retval) {
+
+		pr_err("virtualbot-comm: failed to register tiny tty driver");
+
+		tty_driver_kref_put(vb_comm_tty_driver);
+
+		return retval;
+	}	
+
+	pr_info("virtualbot-comm: driver initialized (" DRIVER_DESC " " DRIVER_VERSION  ")" );
+
 	return retval;
 }
 
@@ -734,6 +819,33 @@ static void __exit tiny_exit(void)
 			kfree( MAS_signals_list_head[ i ] );
 		}
 	}
+
+	/**
+	 * 
+	 * Unregistering The Comm part 
+	 * 
+	*/
+
+	for (i = 0; i < VIRTUALBOT_MAX_TTY_MINORS; ++i) {
+
+		tty_unregister_device(vb_comm_tty_driver, i);
+		
+		pr_debug("virtualbot-comm: device %d unregistered" , i);
+
+		tty_port_destroy(vb_comm_tty_port + i);
+
+		pr_debug("virtualbot-comm: port %i destroyed", i);
+	}
+
+	tty_unregister_driver(vb_comm_tty_driver);
+
+	tty_driver_kref_put(vb_comm_tty_driver);
+
+	// For future
+	for (i = 0; i < VIRTUALBOT_MAX_TTY_MINORS; i++) {
+
+	}
+
 }
 
 module_init(tiny_init);
