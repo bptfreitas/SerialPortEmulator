@@ -12,7 +12,11 @@
 
 #define VIRTUALBOT_TTY_MAJOR 200
 
-#define VIRTUALBOT_COMM_TTY_MAJOR (VIRTUALBOT_TTY_MAJOR + 1)
+#define VB_COMM_DRIVER_NAME "vb-comm_tty"
+
+#define VB_COMM_TTY_NAME "ttyVB-Comm"
+
+#define VB_COMM_TTY_MAJOR (VIRTUALBOT_TTY_MAJOR + 1)
 
 // Set this to 1 for extra debugging messages
 #define VIRTUALBOT_DEBUG 1
