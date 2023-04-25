@@ -908,14 +908,12 @@ static int __init virtualbot_init(void)
 	for (i = 0; i < VIRTUALBOT_MAX_TTY_MINORS; i++) {
 
 		tty_port_init(vb_comm_tty_port + i);
-
 		pr_debug("vb-comm: port %i initiliazed", i);
 
 		tty_port_register_device(vb_comm_tty_port + i, 
 			vb_comm_tty_driver, 
 			i, 
 			NULL);
-
 		pr_debug("vb-comm: port %i linked", i);
 
 		// Port state is initially NULL
