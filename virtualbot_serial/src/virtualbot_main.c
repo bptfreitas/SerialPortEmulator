@@ -59,6 +59,7 @@ struct tiny_serial {
 	struct tty_struct	*tty;		/* pointer to the tty for this device */
 	int			open_count;	/* number of times this port has been opened */
 	struct mutex	mutex;		/* locks this structure */
+
 	struct timer_list	timer;
 
 	int created; 
@@ -79,42 +80,60 @@ struct tiny_serial {
 /* for MAS agent */
 static struct list_head *MAS_signals_list_head[ VIRTUALBOT_MAX_TTY_MINORS ];
 
-static struct tiny_serial *tiny_table[ VIRTUALBOT_MAX_TTY_MINORS ];	/* initially all NULL */
+static struct tiny_serial *virtualbot_table[ VIRTUALBOT_MAX_TTY_MINORS ];	/* initially all NULL */
 
-static struct tty_port tiny_tty_port[ VIRTUALBOT_MAX_TTY_MINORS ];
+static struct tty_port virtualbot_tty_port[ VIRTUALBOT_MAX_TTY_MINORS ];
 
 static struct tty_port vb_comm_tty_port[ VIRTUALBOT_MAX_TTY_MINORS ];
 
 static void tiny_timer(struct timer_list *t)
 {
 	struct tiny_serial *tiny = from_timer(tiny, t, timer);
+
 	struct tty_struct *tty;
 	struct tty_port *port;
+
 	int i;
+
 	char data[1] = {TINY_DATA_CHARACTER};
+
 	int data_size = 1;
 
-	if (!tiny)
+	if (!tiny){
+		pr_warn("virtualbot: tty not set");
 		return;
+	}
 
 	tty = tiny->tty;
 	port = tty->port;
 
+	if (!port){
+		pr_warn("virtualbot: port not set on timer setup");
+		return;
+	}
+
 	/* send the data to the tty layer for users to read.  This doesn't
 	 * actually push the data through unless tty->low_latency is set */
-	for (i = 0; i < data_size; ++i) {
+	for (i = 0; i < data_size; i++) {
+
 		pr_debug("virtualbot: flip buffer write");
 
-		if (!tty_buffer_request_room(port, 1))
+		if ( !tty_buffer_request_room(port, 1) )
+
 			tty_flip_buffer_push(port);
 
 		tty_insert_flip_char(port, data[i], TTY_NORMAL);
 	}
+
 	tty_flip_buffer_push(port);
 
 	/* resubmit the timer again */
-	tiny->timer.expires = jiffies + DELAY_TIME;
-	add_timer(&tiny->timer);
+	//tiny->timer.expires = jiffies + DELAY_TIME;
+	//add_timer(&tiny->timer);
+
+	// timer_setup(&tiny->timer, tiny_timer, 0);
+
+	mod_timer(&tiny->timer, jiffies + msecs_to_jiffies(2000));
 }
 
 static int tiny_open(struct tty_struct *tty, struct file *file)
@@ -127,7 +146,7 @@ static int tiny_open(struct tty_struct *tty, struct file *file)
 
 	/* get the serial object associated with this tty pointer */
 	index = tty->index;
-	tiny = tiny_table[index];
+	tiny = virtualbot_table[index];
 
 	pr_debug("virtualbot: open port %d", index);
 
@@ -140,7 +159,7 @@ static int tiny_open(struct tty_struct *tty, struct file *file)
 		mutex_init(&tiny->mutex);
 		tiny->open_count = 0;
 
-		tiny_table[index] = tiny;
+		virtualbot_table[index] = tiny;
 
 		mutex_lock(&tiny->mutex);
 
@@ -162,9 +181,11 @@ static int tiny_open(struct tty_struct *tty, struct file *file)
 
 
 		/* create our timer and submit it */
-		timer_setup(&tiny->timer, tiny_timer, 0);		
+		//timer_setup(&tiny->timer, tiny_timer, 0);
 
-		tiny->timer.expires = jiffies + DELAY_TIME;
+		//mod_timer(&tiny->timer, jiffies + msecs_to_jiffies(2000));		
+
+		//tiny->timer.expires = jiffies + DELAY_TIME;
 
 		//add_timer(&tiny->timer);
 
@@ -473,7 +494,7 @@ static int tiny_proc_show(struct seq_file *m, void *v)
 	seq_printf(m, "tinyserinfo:1.0 driver:%s\n", DRIVER_VERSION);
 	
 	for (i = 0; i < VIRTUALBOT_MAX_TTY_MINORS; ++i) {
-		tiny = tiny_table[i];
+		tiny = virtualbot_table[i];
 		if (tiny == NULL)
 			continue;
 
@@ -618,7 +639,32 @@ static const struct tty_operations serial_ops = {
 	.ioctl = tiny_ioctl,
 };
 
-static struct tty_driver *tiny_tty_driver;
+
+static int vb_comm_open(struct tty_struct *tty, struct file *file)
+{
+
+	return 0;
+
+}
+
+static void vb_comm_close(struct tty_struct *tty, struct file *file){
+
+}
+
+static unsigned int vb_comm_room(struct tty_struct *tty){
+
+	return 255;
+
+}
+
+static int vb_comm_write(struct tty_struct *tty,
+		      const unsigned char *buffer, int count)
+{
+	return 1;
+}
+
+
+static struct tty_driver *virtualbot_driver;
 
 static struct tty_driver *vb_comm_tty_driver;
 
@@ -628,7 +674,7 @@ static int __init tiny_init(void)
 	unsigned i;
 
 	/* allocate the tty driver */
-	//tiny_tty_driver = alloc_tty_driver(TINY_TTY_MINORS);
+	//virtualbot_driver = alloc_tty_driver(TINY_TTY_MINORS);
 
 	/*
 	 * Initializing the VirtialBot driver
@@ -637,44 +683,44 @@ static int __init tiny_init(void)
 	 * 
 	*/
 
-	tiny_tty_driver = tty_alloc_driver( VIRTUALBOT_MAX_TTY_MINORS, \
+	virtualbot_driver = tty_alloc_driver( VIRTUALBOT_MAX_TTY_MINORS, \
 		TTY_DRIVER_REAL_RAW );
 
-	if (!tiny_tty_driver)
+	if (!virtualbot_driver)
 		return -ENOMEM;
 
 	/* initialize the tty driver */
-	tiny_tty_driver->owner = THIS_MODULE;
-	tiny_tty_driver->driver_name = "virtualbot_tty";
-	tiny_tty_driver->name = "ttyVB";
-	tiny_tty_driver->major = VIRTUALBOT_TTY_MAJOR,
-	tiny_tty_driver->minor_start = 0,
-	tiny_tty_driver->type = TTY_DRIVER_TYPE_SERIAL,
-	tiny_tty_driver->subtype = SERIAL_TYPE_NORMAL,
-	tiny_tty_driver->flags = TTY_DRIVER_REAL_RAW | TTY_DRIVER_DYNAMIC_DEV,
-	tiny_tty_driver->init_termios = tty_std_termios;
-	tiny_tty_driver->init_termios.c_cflag = B9600 | CS8 | CREAD | HUPCL | CLOCAL;
+	virtualbot_driver->owner = THIS_MODULE;
+	virtualbot_driver->driver_name = "virtualbot_tty";
+	virtualbot_driver->name = "ttyVB";
+	virtualbot_driver->major = VIRTUALBOT_TTY_MAJOR,
+	virtualbot_driver->minor_start = 0,
+	virtualbot_driver->type = TTY_DRIVER_TYPE_SERIAL,
+	virtualbot_driver->subtype = SERIAL_TYPE_NORMAL,
+	virtualbot_driver->flags = TTY_DRIVER_REAL_RAW | TTY_DRIVER_DYNAMIC_DEV,
+	virtualbot_driver->init_termios = tty_std_termios;
+	virtualbot_driver->init_termios.c_cflag = B9600 | CS8 | CREAD | HUPCL | CLOCAL;
 
-	//tiny_tty_driver->init_termios = tty_std_termios;
-	//tiny_tty_driver->init_termios.c_iflag = 0;
-	//tiny_tty_driver->init_termios.c_oflag = 0;
-	//tiny_tty_driver->init_termios.c_cflag = B38400 | CS8 | CREAD;
-	//tiny_tty_driver->init_termios.c_lflag = 0;
-	//tiny_tty_driver->init_termios.c_ispeed = 38400;
-	//tiny_tty_driver->init_termios.c_ospeed = 38400;
+	//virtualbot_driver->init_termios = tty_std_termios;
+	//virtualbot_driver->init_termios.c_iflag = 0;
+	//virtualbot_driver->init_termios.c_oflag = 0;
+	//virtualbot_driver->init_termios.c_cflag = B38400 | CS8 | CREAD;
+	//virtualbot_driver->init_termios.c_lflag = 0;
+	//virtualbot_driver->init_termios.c_ispeed = 38400;
+	//virtualbot_driver->init_termios.c_ospeed = 38400;
 
-	tty_set_operations(tiny_tty_driver, &serial_ops);
+	tty_set_operations(virtualbot_driver, &serial_ops);
 
 	pr_debug("virtualbot: set operations");
 
 	for (i = 0; i < VIRTUALBOT_MAX_TTY_MINORS; i++) {
 
-		tty_port_init(tiny_tty_port + i);
+		tty_port_init(virtualbot_tty_port + i);
 
 		pr_debug("virtualbot: port %i initiliazed", i);
 
-		tty_port_register_device(tiny_tty_port + i, 
-			tiny_tty_driver, 
+		tty_port_register_device(virtualbot_tty_port + i, 
+			virtualbot_driver, 
 			i, 
 			NULL);
 
@@ -685,12 +731,12 @@ static int __init tiny_init(void)
 	}
 
 	/* register the tty driver */
-	retval = tty_register_driver(tiny_tty_driver);
+	retval = tty_register_driver(virtualbot_driver);
 
 	if (retval) {
 		pr_err("virtualbot: failed to register tiny tty driver");
 
-		tty_driver_kref_put(tiny_tty_driver);
+		tty_driver_kref_put(virtualbot_driver);
 
 		return retval;
 	}
@@ -769,25 +815,26 @@ static void __exit tiny_exit(void)
 	struct list_head *pos, *n;
 
 	for (i = 0; i < VIRTUALBOT_MAX_TTY_MINORS; ++i) {
-		tty_unregister_device(tiny_tty_driver, i);
+		
+		tty_unregister_device(virtualbot_driver, i);
 		
 		pr_debug("virtualbot: device %d unregistered" , i);
 
-		tty_port_destroy(tiny_tty_port + i);
+		tty_port_destroy(virtualbot_tty_port + i);
 
 		pr_debug("virtualbot: port %i destroyed", i);
 	}
 
-	tty_unregister_driver(tiny_tty_driver);
+	tty_unregister_driver(virtualbot_driver);
 
-	tty_driver_kref_put(tiny_tty_driver);
+	tty_driver_kref_put(virtualbot_driver);
 
 	pr_debug("virtualbot: driver unregistered");
 
 	/* shut down all of the timers and free the memory */
 	for (i = 0; i < VIRTUALBOT_MAX_TTY_MINORS; i++) {
 
-		tiny = tiny_table[i];
+		tiny = virtualbot_table[i];
 
 		pr_debug("virtualbot: freeing VB %i", i);
 
@@ -799,7 +846,7 @@ static void __exit tiny_exit(void)
 			/* shut down our timer and free the memory */
 			del_timer(&tiny->timer);
 			kfree(tiny);
-			tiny_table[i] = NULL;
+			virtualbot_table[i] = NULL;
 		}
 
 		if ( MAS_signals_list_head[ i ] != NULL ) {
