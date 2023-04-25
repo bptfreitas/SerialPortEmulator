@@ -33,6 +33,7 @@ modules_install:
 	sudo depmod -A
 
 set_debug:
+	sudo dmesg -C
 	sudo sysctl -w kernel.printk=7
 	sudo sysctl kernel.printk
 	
@@ -43,6 +44,9 @@ install:
 	sudo modprobe virtualbot
 	sudo chmod a+rw /dev/ttyVB0
 	sudo chmod a+rw /dev/ttyVB0
+
+	sudo chmod a+rw /dev/ttyVB-Comm0
+	sudo chmod a+rw /dev/ttyVB-Comm0	
 
 uninstall:
 	sudo rm -f /dev/virtualbot
