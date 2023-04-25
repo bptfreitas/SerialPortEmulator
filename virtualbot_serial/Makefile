@@ -41,7 +41,8 @@ check_device_logs:
 
 install:
 	sudo modprobe virtualbot
-	sudo chmod a+rw /dev/ttyVBCom0
+	sudo chmod a+rw /dev/ttyVB0
+	sudo chmod a+rw /dev/ttyVB0
 
 uninstall:
 	sudo rm -f /dev/virtualbot
