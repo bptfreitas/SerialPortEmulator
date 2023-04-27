@@ -307,7 +307,7 @@ static int virtualbot_write(struct tty_struct *tty,
 
 	mutex_lock(&virtualbot_global_port_lock[ index ]);
 
-	vb_comm_tty = vb_comm_table[ index ];
+	vb_comm_tty = vb_comm_table[ index ]->tty;
 	if (!vb_comm_tty){
 		pr_err("virtualbot: associated vb-comm tty not set!");
 		goto exit;
@@ -716,8 +716,6 @@ static int vb_comm_open(struct tty_struct *tty, struct file *file)
 	struct vb_comm_serial *vb_comm;
 	int index;
 
-	pr_debug("vb_comm: %s", __func__ );
-
 	/* initialize the pointer in case something fails */
 	tty->driver_data = NULL;
 
@@ -725,7 +723,7 @@ static int vb_comm_open(struct tty_struct *tty, struct file *file)
 	index = tty->index;
 	vb_comm = vb_comm_table[ index ];
 
-	pr_debug("vb_comm: open port %d", index);
+	pr_debug("vb_comm: %s", __func__ );
 
 	if (vb_comm == NULL) {
 		/* first time accessing this device, let's create it */
@@ -812,6 +810,10 @@ static unsigned int vb_comm_write_room(struct tty_struct *tty){
 static int vb_comm_write(struct tty_struct *tty,
 		      const unsigned char *buffer, int count)
 {
+
+	pr_debug("vb_comm: %s", __func__ );
+	pr_debug("vb_comm: data length = %d", count );
+
 	return 2;
 }
 
