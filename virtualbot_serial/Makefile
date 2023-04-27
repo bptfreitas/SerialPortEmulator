@@ -12,7 +12,7 @@ VIRTUALBOT_DEVICE=/dev/virtualbot
 # Real Arduino device
 # VIRTUALBOT_DEVICE=/dev/ttyACM0
 
-.PHONY: all clean setup_dev_environment modules_install set_debug install modules_install test01
+.PHONY: all clean setup_dev_environment modules_install set_debug install modules_install tests
 
 # setup-environment: configures environment for module development
 # For Debian systems, start by using 'apt install make binutils'
@@ -44,7 +44,6 @@ install:
 	sudo modprobe virtualbot
 	sudo chmod a+rw /dev/ttyVB0
 	sudo chmod a+rw /dev/ttyVB0
-
 	sudo chmod a+rw /dev/ttyVB-Comm0
 	sudo chmod a+rw /dev/ttyVB-Comm0	
 
@@ -53,6 +52,9 @@ uninstall:
 	sudo modprobe -r virtualbot
 #	sudo rm -f /lib/modules/`uname -r`/extra/virtualbot.ko
 	sudo depmod
+
+tests:
+	sudo ./tests/tests_virtualbot_driver.py
 
 test01:
 	python3 ./javython.py send $(VIRTUALBOT_DEVICE) fffe0bgetPercepts

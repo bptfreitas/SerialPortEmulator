@@ -3,6 +3,7 @@
 import sys
 import serial
 import re
+import subprocess
 
 # This class is to read the VirtualBot device header and set the test parameters accordienly
 
@@ -77,11 +78,25 @@ class TestSerialObject(unittest.TestCase):
 
     def setUp(self):
 
+        # Clearing the kernel log for the tests
+
+        subprocess.run([ "sudo" , "dmesg" , "-C" ])
+
         self.__VBParams = VirtualBotParameters()
 
 	# Check is you can instantiate a Serial object with the VirtualBot driver
-    def test_01_SerialObjectInstantiated(self):
+    def test_01_VirtualBotSerialObjectInstantiated(self):
         self.assertIsInstance( serial.Serial("/dev/ttyVB0", 9600) , serial.Serial )
+
+    def test_02_VBCommSerialObjectInstantiated(self):        
+
+        self.assertIsInstance( serial.Serial("/dev/ttyVB-Comm0", 9600) , serial.Serial )
+
+    #def test_03_VirtualBotWrite(self):
+
+        
+
+
 
     #def test_isupper(self):
     #    self.assertTrue('FOO'.isupper())
