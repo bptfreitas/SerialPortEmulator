@@ -76,13 +76,15 @@ import unittest
 
 class TestSerialObject(unittest.TestCase):
 
+
     def setUp(self):
 
         # Clearing the kernel log for the tests
-
         subprocess.run([ "sudo" , "dmesg" , "-C" ])
 
         self.__VBParams = VirtualBotParameters()
+
+        
 
 	# Check is you can instantiate a Serial object with the VirtualBot driver
     def test_01_VirtualBotSerialObjectInstantiated(self):
@@ -91,6 +93,17 @@ class TestSerialObject(unittest.TestCase):
     def test_02_VBCommSerialObjectInstantiated(self):        
 
         self.assertIsInstance( serial.Serial("/dev/ttyVB-Comm0", 9600) , serial.Serial )
+
+    def test_03_ReadLine_VB_to_VBComm(self):
+        comm1 = serial.Serial("/dev/ttyVB0", 9600, timeout=3)
+        comm2 = serial.Serial("/dev/ttyVB-Comm0", 9600, timeout=3)
+
+        comm1.write( bytes("XYZ", 'utf-8') )
+
+        print ( comm2.readline().decode() )
+
+
+
 
     #def test_03_VirtualBotWrite(self):
 
