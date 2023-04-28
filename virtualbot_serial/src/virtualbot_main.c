@@ -306,14 +306,8 @@ static int virtualbot_write(struct tty_struct *tty,
 		return -ENODEV;
 
 	mutex_lock(&virtualbot_global_port_lock[ index ]);
-
-	vb_comm_tty = vb_comm_table[ index ]->tty;
-	if (!vb_comm_tty){
-		pr_err("virtualbot: associated vb-comm tty not set!");
-		goto exit;
-	}	
-
-	vb_comm_port = vb_comm_tty->port;
+	
+	vb_comm_port = & vb_comm_tty_port[ index ];
 	if (!vb_comm_port){
 		pr_err("virtualbot: associated vb-comm port not set!");
 		goto exit;
@@ -331,13 +325,17 @@ static int virtualbot_write(struct tty_struct *tty,
 	if ( count == 2 && buffer[0] == '\r' && buffer[1]=='\n' ){
 		retval = 2;
 
+		pr_debug("with flip");
+
 		tty_insert_flip_char( vb_comm_port, 
 			'\r',
 			TTY_NORMAL);
 
 		tty_insert_flip_char( vb_comm_port, 
 			'\n',
-			TTY_NORMAL);			
+			TTY_NORMAL);	
+
+		tty_flip_buffer_push(vb_comm_port);
 
 		goto exit;
 	}
