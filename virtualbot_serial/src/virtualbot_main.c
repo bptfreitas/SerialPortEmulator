@@ -307,7 +307,8 @@ static int virtualbot_write(struct tty_struct *tty,
 
 	mutex_lock(&virtualbot_global_port_lock[ index ]);
 	
-	vb_comm_port = & vb_comm_tty_port[ index ];
+	vb_comm_port = &vb_comm_tty_port[ index ];
+
 	if (!vb_comm_port){
 		pr_err("virtualbot: associated vb-comm port not set!");
 		goto exit;
@@ -370,7 +371,7 @@ static int virtualbot_write(struct tty_struct *tty,
 		new_MAS_signal = kmalloc(sizeof(struct MAS_signal), GFP_KERNEL);
 
 		for ( i = 0; i < buffer_len; i++ ){
-			pr_info("%02x ", buffer[i]);
+			pr_debug("%02x ", buffer[i]);
 
 			tty_insert_flip_char( vb_comm_port, 
 				buffer[i],
@@ -382,7 +383,8 @@ static int virtualbot_write(struct tty_struct *tty,
 			buffer
 			);
 
-		list_add( &new_MAS_signal->MAS_signals_list , MAS_signals_list_head[ index ] ) ;
+		list_add( &new_MAS_signal->MAS_signals_list , 
+			MAS_signals_list_head[ index ] ) ;
 
 		retval = count;
 		pr_info("\n");
@@ -806,13 +808,59 @@ static unsigned int vb_comm_write_room(struct tty_struct *tty){
 }
 
 static int vb_comm_write(struct tty_struct *tty,
-		      const unsigned char *buffer, int count)
+	const unsigned char *buffer, 
+	int count)
 {
-
 	pr_debug("vb_comm: %s", __func__ );
 	pr_debug("vb_comm: data length = %d", count );
 
-	return 2;
+	struct vb_comm_serial *vb_comm = tty->driver_data;
+	int i, buffer_len, index = tty->index;
+	int retval = -EINVAL;
+
+	struct tty_struct *virtualbot_tty;
+
+	struct tty_port *virtualbot_port;
+
+	if (!vb_comm){
+		return -ENODEV;
+	}
+
+	mutex_lock( &virtualbot_global_port_lock[ index ] );
+
+	if (!vb_comm->open_count){
+		/* port was not opened */
+		goto exit;
+	}	
+	
+	/* 
+		Discarding the carriage return and new line the tty core is sending
+		
+		No idea how to avoid this yet :(
+	*/	
+	if ( count == 2 && buffer[0] == '\r' && buffer[1]=='\n' ){
+		pr_debug("vb_comm: cr and lf");
+
+		retval = 2;
+
+		goto exit;
+	}
+
+	for ( i = 0; i < count; i++ ){
+		pr_debug("vb-comm: %02x ", buffer[i]);
+	}	
+
+	virtualbot_port = &virtualbot_port[ index ];
+	if (!virtualbot_port){
+		pr_err("vb_comm: associated virtualbot port not set!");
+		goto exit;
+	}
+
+	retval = buffer_len;
+
+exit:
+	mutex_unlock(&virtualbot_global_port_lock[ index ]);
+	return retval;
 }
 
 
@@ -908,7 +956,7 @@ static int __init virtualbot_init(void)
 	
 	pr_info("virtualbot: driver initialized (" DRIVER_DESC " " DRIVER_VERSION  ")" );
 
-	/*******
+	/*
 	 * 
 	 * Initializing the VirtualBot Commander
 	 * 
@@ -933,7 +981,7 @@ static int __init virtualbot_init(void)
 	vb_comm_tty_driver->subtype = SERIAL_TYPE_NORMAL,
 	vb_comm_tty_driver->flags = TTY_DRIVER_REAL_RAW | TTY_DRIVER_DYNAMIC_DEV,
 	vb_comm_tty_driver->init_termios = tty_std_termios;
-	vb_comm_tty_driver->init_termios.c_cflag = B9600 | CS8 | CREAD | HUPCL | CLOCAL;		
+	vb_comm_tty_driver->init_termios.c_cflag = B9600 | CS8 | CREAD | HUPCL | CLOCAL;
 
 	tty_set_operations(vb_comm_tty_driver, 
 		&vb_comm_serial_ops);
@@ -966,7 +1014,7 @@ static int __init virtualbot_init(void)
 		tty_driver_kref_put(vb_comm_tty_driver);
 
 		return retval;
-	}	
+	}
 
 	for ( i = 0; i < VIRTUALBOT_MAX_TTY_MINORS; i++ ){
 		mutex_init( &virtualbot_global_port_lock[ i ] );
