@@ -36,6 +36,8 @@
 */
 #define VIRTUALBOT_TOTAL_SIGNALS 10
 
+#define IGNORE_CHAR_CBUFFER_SIZE 512
+
 struct virtualbot_dev {
 	// struct scull_qset *data;  /* Pointer to first quantum set */
 	//int quantum;              /* the current quantum size */
