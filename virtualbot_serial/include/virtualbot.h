@@ -14,7 +14,7 @@
 
 #define VB_COMM_DRIVER_NAME "vb-comm_tty"
 
-#define VB_COMM_TTY_NAME "ttyVB-Comm"
+#define VB_COMM_TTY_NAME "ttyVBComm"
 
 #define VB_COMM_TTY_MAJOR (VIRTUALBOT_TTY_MAJOR + 1)
 

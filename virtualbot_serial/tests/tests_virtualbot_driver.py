@@ -5,11 +5,15 @@ import serial
 import re
 import subprocess
 
+import threading
+
+import unittest
+
 # This class is to read the VirtualBot device header and set the test parameters accordienly
 
 class VirtualBotParameters:
     
-    def __init__(self):
+    def __init__(self, debug = False):
 
         self.__parameters = {}
 
@@ -46,11 +50,12 @@ class VirtualBotParameters:
 
                 # now for the comm part
 
-        sys.stdout.write( "VirtualBot compile-time parameters: \n" )
-        for directive in self.__parameters.keys(): 
-            sys.stdout.write( directive + "\t" + str(self[directive])  + "\n" )
+        if (debug == True ):
+            sys.stdout.write( "VirtualBot compile-time parameters: \n" )
+            for directive in self.__parameters.keys(): 
+                sys.stdout.write( directive + "\t" + str(self[directive])  + "\n" )
 
-        sys.stdout.write( "\n" )
+            sys.stdout.write( "\n" )
 
     def __getitem__(self, index):
         return self.__parameters[index]
@@ -72,18 +77,22 @@ except Exception as inst:
 	sys.exit(-1)
  """
 
-import unittest
+def read_serial_port( read_var , serial_object ):
+
+    read_var = serial_object.readline().decode()
+
+    print("Check" + read_var)
 
 class TestSerialObject(unittest.TestCase):
-
+       
 
     def setUp(self):
 
+        # reading compile-time parameters
+        self.__VBParams = VirtualBotParameters( debug = False )
+
         # Clearing the kernel log for the tests
         subprocess.run([ "sudo" , "dmesg" , "-C" ])
-
-        self.__VBParams = VirtualBotParameters()
-
         
 
 	# Check is you can instantiate a Serial object with the VirtualBot driver
@@ -92,15 +101,39 @@ class TestSerialObject(unittest.TestCase):
 
     def test_02_VBCommSerialObjectInstantiated(self):        
 
-        self.assertIsInstance( serial.Serial("/dev/ttyVB-Comm0", 9600) , serial.Serial )
+        self.assertIsInstance( serial.Serial("/dev/ttyVBComm0", 9600) , serial.Serial )
 
-    def test_03_ReadLine_VB_to_VBComm(self):
+    def test_03_checkOpenStatuses(self):
+
+        self.skipTest("Not implemented")
+
+        comm1 = serial.Serial("/dev/ttyVB0", 9600)
+
+        comm2 = serial.Serial("/dev/ttyVBComm0", 9600)
+
+
+    def test_04_VirtualBotWrite_on_VBComm(self):
+
         comm1 = serial.Serial("/dev/ttyVB0", 9600, timeout=3)
-        comm2 = serial.Serial("/dev/ttyVB-Comm0", 9600, timeout=3)
+        comm2 = serial.Serial("/dev/ttyVBComm0", 9600, timeout=5)
 
-        comm1.write( bytes("XYZ", 'utf-8') )
+        recv = str()
 
-        print ( comm2.readline().decode() )
+        read_thread = threading.Thread(target=read_serial_port, args=( recv, comm2 ))
+
+        read_thread.start()
+
+        # recv = comm2.readline().decode()        
+
+        comm1.write( bytes("test_VirtualBot_write_to_VBComm\r\n", 'utf-8') )
+
+        # print ( comm2.readline().decode() )
+
+        read_thread.join()
+
+        print("Ret:" + recv)
+
+        self.assertEqual( recv  , "XYZ" )
 
 
 
