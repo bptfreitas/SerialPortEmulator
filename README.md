@@ -1,20 +1,24 @@
-# CarrinhoSimulator
+# VirtualBot
 This is a simulator device for MAS systems communicating via Javino.
 
-# INSTALLATION
+# Installation
 
 1) On your Debian-like Linux machine, run:
 
-`[sudo] apt install python3-serial linux-headers-`uname -r` gcc binutils make ` 
+```
+[sudo] apt install python3-serial linux-headers-`uname -r` gcc binutils make
+```
 
 2) Inside the virtualbot_serial folder:
 
+```
 make clean all
 make modules_install
 make install
+```
 
 It will then be instantiated /dev/ttyVM* devices
 
-# UNINSTALATION
+# Uninstallation
 
 1) run 'make uninstall' inside the folder virtualbot_serial
