@@ -5,7 +5,7 @@ This is a simulator device for MAS systems communicating via Javino.
 
 1) On your Debian-like Linux machine, run:
 
-`[sudo] apt install python3-serial linux-headers-\`uname -r\` gcc binutils make ` 
+`[sudo] apt install python3-serial linux-headers-`uname -r` gcc binutils make ` 
 
 2) Inside the virtualbot_serial folder:
 
