@@ -17,6 +17,15 @@ sudo make modules_install
 sudo make install
 ```
 
+3) Set read and write permissions on the pairs of devices to be used
+
+Example: for the VirtualBot 0 device:
+
+```
+sudo chmod a+rw /dev/ttyVB0
+sudo chmod a+rw /dev/ttyVBComm0
+```
+
 ## Uninstallation
 
 Inside the 'virtualbot_serial' folder, run: 
