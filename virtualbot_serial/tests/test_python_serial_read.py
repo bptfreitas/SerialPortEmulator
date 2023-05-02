@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 import serial
 
-comm = serial.Serial( "/dev/ttyVBComm0", 9600 , timeout = 5 )
+comm = serial.Serial( "/dev/ttyVBComm0", 9600 , timeout = None )
 
 comm.open
 comm.isOpen
