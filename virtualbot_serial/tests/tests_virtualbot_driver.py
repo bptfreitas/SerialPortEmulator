@@ -4,6 +4,7 @@ import sys
 import serial
 import re
 import subprocess
+import time
 
 import threading
 
@@ -79,9 +80,8 @@ except Exception as inst:
 
 def read_serial_port( read_var , serial_object ):
 
-    read_var = serial_object.readline().decode()
+    read_var[ 'value' ] = serial_object.readline().decode()
 
-    print("Check" + read_var)
 
 class TestSerialObject(unittest.TestCase):
        
@@ -92,11 +92,12 @@ class TestSerialObject(unittest.TestCase):
         self.__VBParams = VirtualBotParameters( debug = False )
 
         # Clearing the kernel log for the tests
-        subprocess.run([ "sudo" , "dmesg" , "-C" ])
+        subprocess.run( [ "sudo" , "dmesg" , "-C" ] )
         
 
 	# Check is you can instantiate a Serial object with the VirtualBot driver
     def test_01_VirtualBotSerialObjectInstantiated(self):
+
         self.assertIsInstance( serial.Serial("/dev/ttyVB0", 9600) , serial.Serial )
 
     def test_02_VBCommSerialObjectInstantiated(self):        
@@ -115,46 +116,55 @@ class TestSerialObject(unittest.TestCase):
     def test_04_VirtualBotWrite_on_VBComm(self):
 
         comm1 = serial.Serial("/dev/ttyVB0", 9600, timeout=3)
-        comm2 = serial.Serial("/dev/ttyVBComm0", 9600, timeout=5)
 
-        recv = str()
+        comm2 = serial.Serial("/dev/ttyVBComm0", 9600, timeout = None )
 
-        read_thread = threading.Thread(target=read_serial_port, args=( recv, comm2 ))
+        data_in = {} 
+
+        read_thread = threading.Thread(target=read_serial_port, args=( data_in, comm2 ))
 
         read_thread.start()
 
-        # recv = comm2.readline().decode()        
+        # recv = comm2.readline().decode()
 
-        comm1.write( bytes("test_VirtualBot_write_to_VBComm\r\n", 'utf-8') )
+        time.sleep(2)
+
+
+        comm1.write( bytes("XYZ\n", 'utf-8') )
 
         # print ( comm2.readline().decode() )
 
         read_thread.join()
 
-        print("Ret:" + recv)
-
-        self.assertEqual( recv  , "XYZ" )
+        self.assertEqual( data_in[ 'value' ]  , "XYZ\n" )
 
 
+    def test_05_VBComm_Write_On_VirtualBot(self):
+
+        comm1 = serial.Serial("/dev/ttyVBComm0", 9600, timeout=3)
+
+        comm2 = serial.Serial("/dev/ttyVB0", 9600, timeout = None )
+
+        data_in = {} 
+
+        read_thread = threading.Thread(target=read_serial_port, args=( data_in, comm2 ))
+
+        read_thread.start()
+
+        # recv = comm2.readline().decode()
+
+        time.sleep(2)
+
+        comm1.write( bytes("XYZ\n", 'utf-8') )
+
+        # print ( comm2.readline().decode() )
+
+        read_thread.join()
+
+        self.assertEqual( data_in[ 'value' ]  , "XYZ\n" )
 
 
-    #def test_03_VirtualBotWrite(self):
 
-        
-
-
-
-    #def test_isupper(self):
-    #    self.assertTrue('FOO'.isupper())
-    #    self.assertFalse('Foo'.isupper())
-
-"""     def test_split(self):
-        s = 'hello world'
-        self.assertEqual(s.split(), ['hello', 'world'])
-        # check that s.split fails when the separator is not a string
-        with self.assertRaises(TypeError):
-            s.split(2)
- """
 
 if __name__ == '__main__':
     unittest.main()
