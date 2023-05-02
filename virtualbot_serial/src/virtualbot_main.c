@@ -412,6 +412,7 @@ static int virtualbot_write(struct tty_struct *tty,
 		TODO: race condition here!
 		Hard limit on the number of stored signals on VIRTUALBOT_TOTAL_SIGNALS
 	*/
+#ifdef NOT_YET
 	if (MAS_signals_count < VIRTUALBOT_TOTAL_SIGNALS ){
 
 		buffer_len = ( count < VIRTUALBOT_MAX_SIGNAL_LEN) ? 
@@ -425,25 +426,9 @@ static int virtualbot_write(struct tty_struct *tty,
 			for ( i = 0; i < buffer_len; i++ ){
 				pr_warn("%02x ", buffer[i]);
 			}
-			retval = 0;
-			goto exit;
 		}
-
-		pr_debug("virtualbot: %s - writing %d length of data", __func__, count);	
 
 		new_MAS_signal = kmalloc(sizeof(struct MAS_signal), GFP_KERNEL);
-
-		for ( i = 0; i < buffer_len; i++ ){
-			pr_debug("%02x ", buffer[i]);
-
-			tty_insert_flip_char( vb_comm_port, 
-				buffer[i],
-				TTY_NORMAL);
-
-			// Add the char to the 'ignore list' for the vb-comm device
-			virtualbot->cbuffer[ virtualbot->head % IGNORE_CHAR_CBUFFER_SIZE ] = buffer[ i ];
-			virtualbot->head ++ ;
-		}
 
 		strcpy( new_MAS_signal->data, 
 			buffer
@@ -452,13 +437,30 @@ static int virtualbot_write(struct tty_struct *tty,
 		list_add( &new_MAS_signal->MAS_signals_list , 
 			MAS_signals_list_head[ index ] ) ;
 
-		retval = count;
 		pr_info("\n");
 	} else {
 		// Maximum number of signals stored achieved - warn kernel then exit
 		pr_warn("virtualbot: maximum number of stored signals achieved");
-		retval = 0;
 	}
+#endif
+
+	pr_debug("virtualbot: %s - writing %d length of data", __func__, count);	
+
+	for ( i = 0; i < count; i++ ){
+		pr_debug("%02x ", buffer[i]);
+
+		tty_insert_flip_char( vb_comm_port, 
+			buffer[i],
+			TTY_NORMAL);
+
+		// Add the char to the 'ignore list' for the vb-comm device
+		virtualbot->cbuffer[ virtualbot->head % IGNORE_CHAR_CBUFFER_SIZE ] = buffer[ i ];
+		virtualbot->head ++ ;
+	}
+
+	tty_flip_buffer_push(vb_comm_port);
+
+	retval = count;
 
 exit:
 	mutex_unlock(&virtualbot_global_port_lock[ index ]);
