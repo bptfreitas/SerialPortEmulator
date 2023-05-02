@@ -873,9 +873,13 @@ static void vb_comm_close(struct tty_struct *tty, struct file *file)
 	pr_debug("vb_comm: close port %d finished", tty->index);
 }
 
-static unsigned int vb_comm_write_room(struct tty_struct *tty){
 
-
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0)) 
+static int vb_comm_write_room(struct tty_struct *tty)
+#else
+static unsigned int vb_comm_write_room(struct tty_struct *tty)
+#endif
+{
 	pr_debug("vb_comm: %s", __func__ );
 
 	return 255;
