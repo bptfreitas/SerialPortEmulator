@@ -1047,8 +1047,8 @@ static int __init virtualbot_init(void)
 
 	/* initialize the tty driver */
 	virtualbot_tty_driver->owner = THIS_MODULE;
-	virtualbot_tty_driver->driver_name = "virtualbot_tty";
-	virtualbot_tty_driver->name = "ttyVB";
+	virtualbot_tty_driver->driver_name = VIRTUALBOT_DRIVER_NAME;
+	virtualbot_tty_driver->name = VIRTUALBOT_TTY_NAME;
 	virtualbot_tty_driver->major = VIRTUALBOT_TTY_MAJOR,
 	virtualbot_tty_driver->minor_start = 0,
 	virtualbot_tty_driver->type = TTY_DRIVER_TYPE_SERIAL,
