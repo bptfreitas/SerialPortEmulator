@@ -4,17 +4,15 @@
 
 #include <linux/module.h>
 
-#define DEVICE_NAME "virtualbot"
-
 #define VIRTUALBOT_DRIVER_NAME "emulatedport_tty"
 
-#define VIRTUALBOT_TTY_NAME "ttyEP"
+#define VIRTUALBOT_TTY_NAME "ttyEmulatedPort"
 
 #define VIRTUALBOT_TTY_MAJOR 200
 
-#define VB_COMM_DRIVER_NAME "ep-exogen_tty"
+#define VB_COMM_DRIVER_NAME "exogenous_tty"
 
-#define VB_COMM_TTY_NAME "ttyEP-exogen"
+#define VB_COMM_TTY_NAME "ttyExogenous"
 
 #define VB_COMM_TTY_MAJOR (VIRTUALBOT_TTY_MAJOR + 1)
 

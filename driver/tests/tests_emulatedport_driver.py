@@ -91,9 +91,9 @@ class TestSerialObject(unittest.TestCase):
         # reading compile-time parameters
         self.__VBParams = VirtualBotParameters( debug = False )
 
-        self.ttyEP = "/dev/" + self.__VBParams[ 'VIRTUALBOT_TTY_NAME' ]
+        self.__EmulatedPort = "/dev/ttyEmulatedPort"
 
-        self.ttyEP_exogen = "/dev/" + self.__VBParams[ 'VB_COMM_TTY_NAME' ]
+        self.__Exogenous = "/dev/ttyExogenous"
 
         # Clearing the kernel log for the tests
         subprocess.run( [ "sudo" , "dmesg" , "-C" ] )
@@ -102,26 +102,39 @@ class TestSerialObject(unittest.TestCase):
 	# Check is you can instantiate a Serial object with the VirtualBot driver
     def test_01_VirtualBotSerialObjectInstantiated(self):
 
-        self.assertIsInstance( serial.Serial("/dev/ttyEP0", 9600) , serial.Serial )
+        self.assertIsInstance( 
+            serial.Serial( str( self.__EmulatedPort + "0" ) ,
+                9600) , 
+                serial.Serial 
+            )
 
     def test_02_VBCommSerialObjectInstantiated(self):        
 
-        self.assertIsInstance( serial.Serial("/dev/ttyEP-exogen0", 9600) , serial.Serial )
+        self.assertIsInstance( 
+            serial.Serial( str( self.__Exogenous + "0" ), 
+                9600) , 
+                serial.Serial 
+            )
 
     def test_03_checkOpenStatuses(self):
 
         self.skipTest("Not implemented")
 
-        comm1 = serial.Serial( "/dev/ttyEP0", 9600)
+        comm1 = serial.Serial( str( self.__EmulatedPort + "0" ), 
+            9600)
 
-        comm2 = serial.Serial( "/dev/ttyEP-exogen0", 9600)
+        comm2 = serial.Serial( str( self.__Exogenous + "0" ) , 9600)
 
 
     def test_04_VirtualBotWrite_on_VBComm(self):
 
-        comm1 = serial.Serial( "/dev/ttyEP0", 9600, timeout=3)
+        comm1 = serial.Serial( str( self.__EmulatedPort + "0" ), 
+            9600, 
+            timeout=3)
 
-        comm2 = serial.Serial( "/dev/ttyEP-exogen0", 9600, timeout = None )
+        comm2 = serial.Serial( str( self.__Exogenous + "0" ) , 
+            9600, 
+            timeout = None )
 
         data_in = {} 
 
@@ -145,13 +158,19 @@ class TestSerialObject(unittest.TestCase):
 
     def test_05_VBComm_Write_On_VirtualBot(self):
 
-        comm1 = serial.Serial( "/dev/ttyEP-exogen0", 9600, timeout=3)
+        comm1 = serial.Serial( str( self.__Exogenous + "0" ), 
+            9600, 
+            timeout=3)
 
-        comm2 = serial.Serial( "/dev/ttyEP0" , 9600, timeout = None )
+        comm2 = serial.Serial( str( self.__EmulatedPort + "0" ) , 
+            9600, 
+            timeout = None )
 
         data_in = {} 
 
-        read_thread = threading.Thread(target=read_serial_port, args=( data_in, comm2 ))
+        read_thread = threading.Thread( target=read_serial_port, 
+            args=( data_in, comm2 )
+            )
 
         read_thread.start()
 
@@ -166,9 +185,6 @@ class TestSerialObject(unittest.TestCase):
         read_thread.join()
 
         self.assertEqual( data_in[ 'value' ]  , "XYZ\n" )
-
-
-
 
 if __name__ == '__main__':
     unittest.main()

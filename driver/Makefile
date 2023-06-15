@@ -42,8 +42,8 @@ check_device_logs:
 
 install:
 	sudo modprobe virtualbot
-	sudo chmod a+rw /dev/ttyEP0
-	sudo chmod a+rw /dev/ttyEP-exogen0
+	sudo chmod a+rw /dev/ttyEmulatedPort0
+	sudo chmod a+rw /dev/ttyExogenous0
 
 uninstall:
 	sudo rm -f /dev/virtualbot
