@@ -1057,8 +1057,10 @@ static int __init virtualbot_init(void)
 	virtualbot_tty_driver->init_termios = tty_std_termios;
 	virtualbot_tty_driver->init_termios.c_cflag = B9600 | CS8 | CREAD | HUPCL | CLOCAL;
 	virtualbot_tty_driver->init_termios.c_iflag = 0;
-	virtualbot_tty_driver->init_termios.c_oflag = 0;	
-
+	virtualbot_tty_driver->init_termios.c_oflag = 0;
+	
+	virtualbot_tty_driver->init_termios.c_lflag = 0;
+	
 	//virtualbot_tty_driver->init_termios = tty_std_termios;
 	//virtualbot_tty_driver->init_termios.c_cflag = B38400 | CS8 | CREAD;
 	//virtualbot_tty_driver->init_termios.c_lflag = 0;
@@ -1127,6 +1129,9 @@ static int __init virtualbot_init(void)
 	vb_comm_tty_driver->init_termios.c_cflag = B9600 | CS8 | CREAD | HUPCL | CLOCAL;
 	vb_comm_tty_driver->init_termios.c_iflag = 0;
 	vb_comm_tty_driver->init_termios.c_oflag = 0;	
+	
+	// ????
+	vb_comm_tty_driver->init_termios.c_lflag = 0;	
 
 	tty_set_operations(vb_comm_tty_driver, 
 		&vb_comm_serial_ops);
