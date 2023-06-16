@@ -350,22 +350,6 @@ static int virtualbot_write(struct tty_struct *tty,
 		/* port was not opened */
 		goto exit;
 
-
-	// Check if the 'ack' char buffer has something 
-	if ( CIRC_CNT(vb_comm->head, vb_comm->tail, IGNORE_CHAR_CBUFFER_SIZE) >= 1 ){
-
-		// Consume the 'ack' buffer
-		if ( count == 1 && vb_comm->cbuffer[ vb_comm->tail ] == buffer[0] ){
-			pr_debug("vb-comm: consuming 'ack' buffer[%d]", vb_comm->tail);
-
-			vb_comm->tail ++ ;
-			retval = 1;
-
-			goto exit;
-		}
-	}
-
-
 	/* 
 		Discarding the carriage return and new line the tty core is sending
 		
@@ -397,7 +381,7 @@ static int virtualbot_write(struct tty_struct *tty,
 
 		tty_insert_flip_char( vb_comm_port, 
 			'\n',
-			TTY_NORMAL);	
+			TTY_NORMAL);
 
 		tty_flip_buffer_push(vb_comm_port);
 
@@ -453,9 +437,6 @@ static int virtualbot_write(struct tty_struct *tty,
 			buffer[i],
 			TTY_NORMAL);
 
-		// Add the char to the 'ignore list' for the vb-comm device
-		virtualbot->cbuffer[ virtualbot->head % IGNORE_CHAR_CBUFFER_SIZE ] = buffer[ i ];
-		virtualbot->head ++ ;
 	}
 
 	tty_flip_buffer_push(vb_comm_port);
@@ -930,20 +911,6 @@ static int vb_comm_write(struct tty_struct *tty,
 		pr_err("vb_comm: virtualbot port not set!");
 		goto exit;
 	}
-
-	// Check if the 'ack' char buffer has something
-	if ( CIRC_CNT(virtualbot->head, virtualbot->tail, IGNORE_CHAR_CBUFFER_SIZE) >= 1 ){
-
-		// Consume the 'ack' buffer
-		if ( count == 1 && virtualbot->cbuffer[ virtualbot->tail ] == buffer[0] ){						
-			pr_debug("vb-comm: consuming 'ack' buffer[%d]", virtualbot->tail);
-
-			virtualbot->tail ++ ;
-			retval = 1;
-
-			goto exit;
-		}
-	}
 	
 	/* 
 		Discarding the carriage return and new line the tty core is sending
@@ -970,6 +937,7 @@ static int vb_comm_write(struct tty_struct *tty,
 
 
 	if (count == 1 && buffer[0] == '\n'){
+
 		retval = 1 ;
 
 		pr_debug("vb-comm: %s - sending end of line (\\n)", __func__);
@@ -992,9 +960,6 @@ static int vb_comm_write(struct tty_struct *tty,
 		tty_insert_flip_char( virtualbot_port, 
 			buffer[i],
 			TTY_NORMAL);
-
-		vb_comm->cbuffer[ vb_comm->head ] = buffer[ i ] % IGNORE_CHAR_CBUFFER_SIZE;
-		vb_comm->head++;
 	}
 
 	tty_flip_buffer_push( virtualbot_port );
@@ -1059,6 +1024,7 @@ static int __init virtualbot_init(void)
 	virtualbot_tty_driver->init_termios.c_iflag = 0;
 	virtualbot_tty_driver->init_termios.c_oflag = 0;
 	
+	// Must be 0 to disable ECHO flag
 	virtualbot_tty_driver->init_termios.c_lflag = 0;
 	
 	//virtualbot_tty_driver->init_termios = tty_std_termios;
@@ -1130,7 +1096,7 @@ static int __init virtualbot_init(void)
 	vb_comm_tty_driver->init_termios.c_iflag = 0;
 	vb_comm_tty_driver->init_termios.c_oflag = 0;	
 	
-	// ????
+	// Must be 0 to disable ECHO flag
 	vb_comm_tty_driver->init_termios.c_lflag = 0;	
 
 	tty_set_operations(vb_comm_tty_driver, 
