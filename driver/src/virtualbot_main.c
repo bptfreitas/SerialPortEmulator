@@ -218,7 +218,6 @@ static int virtualbot_open(struct tty_struct *tty, struct file *file)
 		virtualbot_table[index]->head = 0;
 		virtualbot_table[index]->tail = 0;
 
-
 		/* 
 			MAS structure initialization. 
 			It will be initialized the first time the driver is openned
@@ -378,7 +377,7 @@ static int virtualbot_write(struct tty_struct *tty,
 
 		tty_insert_flip_char( vb_comm_port, 
 			'\n',
-			TTY_NORMAL);	
+			TTY_NORMAL);
 
 		tty_flip_buffer_push(vb_comm_port);
 
@@ -467,12 +466,13 @@ static unsigned int virtualbot_write_room(struct tty_struct *tty)
 #endif
 {
 	struct virtualbot_serial *virtualbot = tty->driver_data;
-	int room = -EINVAL, index = tty->index;
+	int room = -EINVAL, 
+		index = tty->index;
 
 	pr_debug("virtualbot: %s", __func__);
 
 	if (!virtualbot)
-		return -ENODEV;
+		return -ENODEV;	
 
 	mutex_lock(&virtualbot_global_port_lock[ index ]);
 
@@ -482,7 +482,9 @@ static unsigned int virtualbot_write_room(struct tty_struct *tty)
 	}
 
 	/* calculate how much room is left in the device */
-	room = 255;
+	// room = 255;
+
+	room = tty_buffer_space_avail( tty->port );
 
 exit:
 	mutex_unlock(&virtualbot_global_port_lock[ index ]);
@@ -878,7 +880,23 @@ static unsigned int vb_comm_write_room(struct tty_struct *tty)
 {
 	pr_debug("vb_comm: %s", __func__ );
 
-	return 255;
+	unsigned int room;
+	
+	room = -ENODEV;
+
+	struct tty_port *port;
+
+	port = tty->port;
+
+	if (! port ){
+		goto exit;
+	}
+
+	room = tty_buffer_space_avail( tty->port );
+
+exit:
+
+	return room;
 
 }
 

@@ -85,8 +85,10 @@ def read_serial_port( read_var , serial_object ):
 
 class TestSerialObject(unittest.TestCase):
        
+    @classmethod
+    def setUpClass(self):
 
-    def setUp(self):
+        print("setUpClass")
 
         # reading compile-time parameters
         self.__VBParams = VirtualBotParameters( debug = False )
@@ -94,9 +96,12 @@ class TestSerialObject(unittest.TestCase):
         self.__EmulatedPort = "/dev/ttyEmulatedPort"
 
         self.__Exogenous = "/dev/ttyExogenous"
+        
+
+    def setUp(self):
 
         # Clearing the kernel log for the tests
-        subprocess.run( [ "sudo" , "dmesg" , "-C" ] )
+        subprocess.run( [ "sudo" , "dmesg" , "-C" ] )        
         
 
 	# Check is you can instantiate a Serial object with the VirtualBot driver
@@ -126,11 +131,11 @@ class TestSerialObject(unittest.TestCase):
         comm2 = serial.Serial( str( self.__Exogenous + "0" ) , 9600)
 
 
-    def test_04_VirtualBotWrite_on_VBComm(self):
+    def test_04_EmulatedPort_Write_on_Exogenous(self):
 
         comm1 = serial.Serial( str( self.__EmulatedPort + "0" ), 
             9600, 
-            timeout=3)
+            timeout = 3 )
 
         comm2 = serial.Serial( str( self.__Exogenous + "0" ) , 
             9600, 
@@ -156,7 +161,7 @@ class TestSerialObject(unittest.TestCase):
         self.assertEqual( data_in[ 'value' ]  , "XYZ\n" )
 
 
-    def test_05_VBComm_Write_On_VirtualBot(self):
+    def test_05_Exogenous_Write_on_EmulatedPort(self):
 
         comm1 = serial.Serial( str( self.__Exogenous + "0" ), 
             9600, 
