@@ -10,11 +10,15 @@ import threading
 
 import unittest
 
+from collections import UserDict
+
+
 # This class is to read the VirtualBot device header and set the test parameters accordienly
 
-class VirtualBotParameters:
+class VirtualBotParameters(dict):
     
-    def __init__(self, debug = False):
+    def __init__(self,*arg,**kw):
+        super(VirtualBotParameters, self).__init__(*arg, **kw)
 
         self.__parameters = {}
 
@@ -51,17 +55,17 @@ class VirtualBotParameters:
 
                 # now for the comm part
 
-        if (debug == True ):
-            sys.stdout.write( "VirtualBot compile-time parameters: \n" )
-            for directive in self.__parameters.keys(): 
-                sys.stdout.write( directive + "\t" + str(self[directive])  + "\n" )
+        self = self.__parameters                
+        
+        sys.stdout.write( "Serial Emulator compile-time parameters: \n" )
 
-            sys.stdout.write( "\n" )
+        for directive in self.keys(): 
+            sys.stdout.write( directive + "\t" + str(self[directive])  + "\n" )
+
+        sys.stdout.write( "\n" )
 
     def __getitem__(self, index):
         return self.__parameters[index]
-
-
 
 
 """ try:
