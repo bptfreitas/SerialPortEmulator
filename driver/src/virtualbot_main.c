@@ -466,7 +466,7 @@ static unsigned int virtualbot_write_room(struct tty_struct *tty)
 #endif
 {
 	struct virtualbot_serial *virtualbot = tty->driver_data;
-	int room = -EINVAL, 
+	unsigned int room = -EINVAL, 
 		index = tty->index;
 
 	pr_debug("virtualbot: %s", __func__);
@@ -488,12 +488,15 @@ static unsigned int virtualbot_write_room(struct tty_struct *tty)
 
 exit:
 	mutex_unlock(&virtualbot_global_port_lock[ index ]);
+
+	pr_debug("virtualbot: room = %u", room );
+
 	return room;
 }
 
 #define RELEVANT_IFLAG(iflag) ((iflag) & (IGNBRK|BRKINT|IGNPAR|PARMRK|INPCK))
 
-static void virtualbot_set_termios(struct tty_struct *tty, struct ktermios *old_termios)
+static void virtualbot_set_termios(struct tty_struct *tty, const struct ktermios *old_termios)
 {
 	unsigned int cflag;
 
@@ -878,13 +881,14 @@ static int vb_comm_write_room(struct tty_struct *tty)
 static unsigned int vb_comm_write_room(struct tty_struct *tty)
 #endif
 {
-	pr_debug("vb_comm: %s", __func__ );
 
 	unsigned int room;
-	
-	room = -ENODEV;
 
 	struct tty_port *port;
+
+	pr_debug("vb_comm: %s", __func__ );	
+	
+	room = -ENODEV;
 
 	port = tty->port;
 
@@ -895,6 +899,8 @@ static unsigned int vb_comm_write_room(struct tty_struct *tty)
 	room = tty_buffer_space_avail( tty->port );
 
 exit:
+
+	pr_debug("vb_comm: room = %u", room );
 
 	return room;
 
