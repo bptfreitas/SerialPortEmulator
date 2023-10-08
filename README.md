@@ -24,8 +24,8 @@ sudo make install
 Example: for the EmulatedPort 0 device:
 
 ```
-sudo chmod a+rw /dev/ttyEmulatedPort0
-sudo chmod a+rw /dev/ttyExogenous0
+sudo chmod 777 /dev/ttyEmulatedPort0
+sudo chmod 777 /dev/ttyExogenous0
 ```
 
 ## Uninstallation
