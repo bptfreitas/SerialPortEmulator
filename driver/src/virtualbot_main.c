@@ -62,9 +62,9 @@ struct virtualbot_serial {
 	int			open_count;	/* number of times this port has been opened */
 	struct mutex	mutex;		/* locks this structure */
 
-	struct timer_list	timer;
+	struct timer_list timer;
 
-	int created; 
+	int ping_pong;
 
 	/* for tiocmget and tiocmset functions */
 	int			msr;		/* MSR shadow */
@@ -92,7 +92,7 @@ struct vb_comm_serial {
 	int			open_count;	/* number of times this port has been opened */
 	struct mutex	mutex;		/* locks this structure */
 
-	struct timer_list	timer;
+	struct timer_list timer;
 
 	int created; 
 
@@ -136,57 +136,43 @@ static struct vb_comm_serial *vb_comm_table[ VIRTUALBOT_MAX_TTY_MINORS ];	/* ini
 
 static struct tty_port vb_comm_tty_port[ VIRTUALBOT_MAX_TTY_MINORS ];
 
-#ifdef PROBABLY_NOT_GOING_TO_USE_ANYMORE
-static void tiny_timer(struct timer_list *t)
+static void virtualbot_timer(struct timer_list *t)
 {
-	struct virtualbot_serial *tiny = from_timer(tiny, t, timer);
+	unsigned long virtualbot_index = t->flags;
 
-	struct tty_struct *tty;
-	struct tty_port *port;
+	struct virtualbot_serial *virtualbot_dev;
 
-	int i;
+	pr_debug("virtualbot: device %lu timer start", virtualbot_index);
 
-	char data[1] = {TINY_DATA_CHARACTER};
+	virtualbot_dev = container_of(t, struct virtualbot_serial, timer);
 
-	int data_size = 1;
+	if (virtualbot_dev->ping_pong){
+		pr_debug("virtualbot: ping!");
 
-	if (!tiny){
-		pr_warn("virtualbot: tty not set");
-		return;
+		virtualbot_dev->ping_pong = 0;
+
+	}else{
+		pr_debug("virtualbot: PONG!");
+
+		virtualbot_dev->ping_pong = 1;
+
 	}
+	
+	//struct virtualbot_serial *tiny = from_timer(tiny, t, timer);
 
-	tty = tiny->tty;
-	port = tty->port;
+	//struct tty_struct *tty;
+	//struct tty_port *port;
 
-	if (!port){
-		pr_warn("virtualbot: port not set on timer setup");
-		return;
-	}
+	/* resubmit the timer again */		
+	timer_setup(t, virtualbot_timer, 0);
 
-	/* send the data to the tty layer for users to read.  This doesn't
-	 * actually push the data through unless tty->low_latency is set */
-	for (i = 0; i < data_size; i++) {
+	t->expires = jiffies + DELAY_TIME;
+	t->flags = virtualbot_index;
 
-		pr_debug("virtualbot: flip buffer write");
+	add_timer(t);
 
-		if ( !tty_buffer_request_room(port, 1) )
-
-			tty_flip_buffer_push(port);
-
-		tty_insert_flip_char(port, data[i], TTY_NORMAL);
-	}
-
-	tty_flip_buffer_push(port);
-
-	/* resubmit the timer again */
-	//tiny->timer.expires = jiffies + DELAY_TIME;
-	//add_timer(&tiny->timer);
-
-	// timer_setup(&tiny->timer, tiny_timer, 0);
-
-	mod_timer(&tiny->timer, jiffies + msecs_to_jiffies(2000));
+	//mod_timer(&tiny->timer, jiffies + msecs_to_jiffies(2000));
 }
-#endif
 
 static int virtualbot_open(struct tty_struct *tty, struct file *file)
 {
@@ -239,13 +225,16 @@ static int virtualbot_open(struct tty_struct *tty, struct file *file)
 
 
 		/* create our timer and submit it */
-		//timer_setup(&virtualbot->timer, virtualbot_timer, 0);
+		timer_setup(&virtualbot->timer, virtualbot_timer, 0);
 
 		//mod_timer(&virtualbot->timer, jiffies + msecs_to_jiffies(2000));		
 
-		//virtualbot->timer.expires = jiffies + DELAY_TIME;
+		virtualbot->timer.expires = jiffies + DELAY_TIME;
+		virtualbot->timer.flags = index;
 
-		//add_timer(&virtualbot->timer);
+		virtualbot->ping_pong = 0;
+
+		add_timer(&virtualbot->timer);
 
 	} else {
 		// Already set
@@ -495,6 +484,12 @@ exit:
 }
 
 #define RELEVANT_IFLAG(iflag) ((iflag) & (IGNBRK|BRKINT|IGNPAR|PARMRK|INPCK))
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0)) 
+//static int virtualbot_write_room(struct tty_struct *tty)
+#else
+//static unsigned int virtualbot_write_room(struct tty_struct *tty)
+#endif
 
 static void virtualbot_set_termios(struct tty_struct *tty, 
 	const struct ktermios *old_termios)
