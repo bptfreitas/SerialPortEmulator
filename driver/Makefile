@@ -52,7 +52,8 @@ uninstall:
 	sudo depmod
 
 tests:
-	sudo ./tests/tests_virtualbot_driver.py
+	sudo dmesg -C
+	sudo ./tests/tests_emulatedport_driver.py
 
 test01:
 	python3 ./javython.py send $(VIRTUALBOT_DEVICE) fffe0bgetPercepts
