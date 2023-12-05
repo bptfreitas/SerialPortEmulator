@@ -59,6 +59,9 @@ struct MAS_signal {
 
 struct virtualbot_serial {
 	struct tty_struct	*tty;		/* pointer to the tty for this device */
+
+
+
 	int			open_count;	/* number of times this port has been opened */
 	struct mutex	mutex;		/* locks this structure */
 
@@ -142,26 +145,31 @@ static void virtualbot_timer(struct timer_list *t)
 
 	struct virtualbot_serial *virtualbot_dev;
 
-	pr_debug("virtualbot: device %lu timer start", virtualbot_index);
+	struct tty_struct *virtualbot_tty;
+
+	struct vb_comm_serial *vb_comm_dev;
 
 	virtualbot_dev = container_of(t, struct virtualbot_serial, timer);
 
-	if (virtualbot_dev->ping_pong){
-		pr_debug("virtualbot: ping!");
+	virtualbot_tty = virtualbot_dev->tty;
 
-		virtualbot_dev->ping_pong = 0;
+	if (virtualbot_tty != NULL){
+		// virtualbot is allocated
+		pr_debug("virtualbot: timer index = %d", 
+			virtualbot_tty->index);
 
-	}else{
-		pr_debug("virtualbot: PONG!");
+		vb_comm_dev = vb_comm_table[ virtualbot_tty->index ];
 
-		virtualbot_dev->ping_pong = 1;
+		if (vb_comm_dev != NULL){
+			// vb_comm_dev is ready
+		} else {
+			pr_warn( "virtualbot: vb_comm device for tty %d not set!", 
+				virtualbot_tty->index );
+		}
 
+	} else {
+		pr_err("virtualbot: virtualbot_tty not set!");
 	}
-	
-	//struct virtualbot_serial *tiny = from_timer(tiny, t, timer);
-
-	//struct tty_struct *tty;
-	//struct tty_port *port;
 
 	/* resubmit the timer again */		
 	timer_setup(t, virtualbot_timer, 0);
@@ -193,6 +201,7 @@ static int virtualbot_open(struct tty_struct *tty, struct file *file)
 	if (virtualbot == NULL) {
 		/* first time accessing this device, let's create it */
 		virtualbot = kmalloc(sizeof(*virtualbot), GFP_KERNEL);
+
 		if (!virtualbot)
 			return -ENOMEM;
 
@@ -278,7 +287,7 @@ static void do_close(struct virtualbot_serial *virtualbot)
 		/* Do any hardware specific stuff here */
 
 		/* shut down our timer */
-		// del_timer(&virtualbot->timer);		
+		// del_timer(&virtualbot->timer);
 	}
 
 	// Force push the vb_comm buffer
@@ -305,7 +314,8 @@ static void virtualbot_close(struct tty_struct *tty, struct file *file)
 }
 
 static int virtualbot_write(struct tty_struct *tty,
-		      const unsigned char *buffer, int count)
+	const unsigned char *buffer, 
+	int count)
 {	
 	int i, index;
 	int retval;
