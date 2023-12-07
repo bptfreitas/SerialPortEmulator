@@ -50,13 +50,11 @@ MODULE_LICENSE("GPL");
 struct virtualbot_serial {
 	struct tty_struct	*tty;		/* pointer to the tty for this device */
 
+	unsigned long index;
 
-
-	int			open_count;	/* number of times this port has been opened */
+	int	open_count;	/* number of times this port has been opened */
 
 	struct timer_list timer;
-
-	int ping_pong;
 
 	/* for tiocmget and tiocmset functions */
 	int			msr;		/* MSR shadow */
@@ -70,8 +68,8 @@ struct virtualbot_serial {
 	struct async_icount	icount;
 
 	/* Circular buffer to discard the return chars on writes */
-	char cbuffer[ IGNORE_CHAR_CBUFFER_SIZE ];
-	int head, tail;
+	struct circ_buf recv_buffer;
+	
 };
 
 
@@ -98,11 +96,6 @@ struct vb_comm_serial {
 	wait_queue_head_t	wait;
 	
 	struct async_icount	icount;	
-
-
-	// The 'ack' char buffer 
-	char cbuffer[ IGNORE_CHAR_CBUFFER_SIZE ];
-	int head, tail;	
 
 };
 
@@ -133,7 +126,7 @@ static struct tty_port vb_comm_tty_port[ VIRTUALBOT_MAX_TTY_MINORS ];
 
 static void virtualbot_timer(struct timer_list *t)
 {
-	unsigned long virtualbot_index = t->flags;
+	unsigned long virtualbot_index;
 
 	struct virtualbot_serial *virtualbot_dev;
 
@@ -141,23 +134,25 @@ static void virtualbot_timer(struct timer_list *t)
 
 	struct vb_comm_serial *vb_comm_dev;
 
-	virtualbot_dev = container_of(t, struct virtualbot_serial, timer);
+	virtualbot_dev = container_of(t, struct virtualbot_serial, timer);	
 
-	virtualbot_tty = virtualbot_dev->tty;
+	virtualbot_tty = virtualbot_dev->tty;	
 
 	if (virtualbot_tty != NULL){
 		// virtualbot is allocated
-		pr_debug("virtualbot: timer index = %d", 
-			virtualbot_tty->index);
+		virtualbot_index = virtualbot_dev->index;
 
-		vb_comm_dev = vb_comm_table[ virtualbot_tty->index ];
+		pr_debug("virtualbot: timer index = %lu", 
+			virtualbot_index);
+
+		vb_comm_dev = vb_comm_table[ virtualbot_index ];
 
 		if (vb_comm_dev != NULL){
-			// vb_comm_dev is ready			
+			// vb_comm_dev is ready	
 			
 		} else {
-			pr_warn( "virtualbot: vb_comm device for tty %d not set!", 
-				virtualbot_tty->index );
+			pr_warn( "virtualbot: vb_comm device for tty %lu not set!", 
+				virtualbot_index );
 		}
 
 	} else {
@@ -168,7 +163,6 @@ static void virtualbot_timer(struct timer_list *t)
 	timer_setup(t, virtualbot_timer, 0);
 
 	t->expires = jiffies + DELAY_TIME;
-	t->flags = virtualbot_index;
 
 	add_timer(t);
 
@@ -197,19 +191,30 @@ static int virtualbot_open(struct tty_struct *tty, struct file *file)
 
 		if (!virtualbot)
 			return -ENOMEM;
+
+		virtualbot->index = index;
 			
 		virtualbot->open_count = 0;
 
 		virtualbot_table[index] = virtualbot;
 
-		virtualbot_table[index]->head = 0;
-		virtualbot_table[index]->tail = 0;
+		/**
+		 *  Allocating receive buffer , 4 KiB default size
+		 * */
+		virtualbot_table[index]->recv_buffer.head = 0;
+		virtualbot_table[index]->recv_buffer.tail = 0;
+
+		virtualbot_table[index]->recv_buffer.buf = kmalloc( 
+			sizeof(char) * 4096,
+			GFP_KERNEL );
+
+		// pointer to the tty struct
+		virtualbot_table[index]->tty = tty;
 
 		/* create our timer and submit it */
 		timer_setup(&virtualbot->timer, virtualbot_timer, 0);		
 
 		virtualbot->timer.expires = jiffies + DELAY_TIME;
-		virtualbot->timer.flags = index;
 
 		add_timer(&virtualbot->timer);
 
@@ -252,6 +257,8 @@ static void do_close(struct virtualbot_serial *virtualbot)
 	if (virtualbot->open_count <= 0) {
 		/* The port is being closed by the last user. */
 		/* Do any hardware specific stuff here */
+
+
 	}
 
 	// Force push the vb_comm buffer
@@ -278,7 +285,7 @@ static void virtualbot_close(struct tty_struct *tty, struct file *file)
 }
 
 static int virtualbot_write(struct tty_struct *tty,
-	const unsigned char *buffer, 
+	const unsigned char *buffer,
 	int count)
 {	
 	int i, index;
@@ -303,26 +310,27 @@ static int virtualbot_write(struct tty_struct *tty,
 	mutex_lock(&vb_comm_lock[ index ]);
 	
 	vb_comm = vb_comm_table[ index ];
-	if (!vb_comm){
+	if (vb_comm == NULL){
 		pr_err("virtualbot: %s vb_comm not set!", __func__);
 		goto exit;
 	}
 
 	vb_comm_tty = vb_comm->tty;
-	if (!vb_comm_tty){
+	if (vb_comm_tty == NULL ){
 		pr_err("virtualbot: %s vb_comm tty not set!", __func__);
 		goto exit;
 	}
 
 	vb_comm_port = vb_comm_tty->port;
-	if (!vb_comm_port){
+	if (vb_comm_port == NULL){
 		pr_err("virtualbot: %s vb_comm port not set!", __func__);
 		goto exit;
 	}
 
-	if (!virtualbot->open_count)
+	if (!virtualbot->open_count){
 		/* port was not opened */
 		goto exit;
+	}
 
 	pr_debug("virtualbot: %s - writing %d length of data", __func__, count);	
 
@@ -359,7 +367,7 @@ static unsigned int virtualbot_write_room(struct tty_struct *tty)
 	if (!virtualbot)
 		return -ENODEV;	
 
-	mutex_lock(&virtualbot_lock[ index ]);
+	mutex_lock( &virtualbot_lock[ index ] );
 
 	if (!virtualbot->open_count) {
 		/* port was not opened */
@@ -372,7 +380,7 @@ static unsigned int virtualbot_write_room(struct tty_struct *tty)
 	room = tty_buffer_space_avail( tty->port );
 
 exit:
-	mutex_unlock(&virtualbot_global_port_lock[ index ]);
+	mutex_unlock(&virtualbot_lock[ index ]);
 
 	pr_debug("virtualbot: room = %u", room );
 
@@ -704,10 +712,6 @@ static int vb_comm_open(struct tty_struct *tty, struct file *file)
 
 		vb_comm_table[index] = vb_comm;
 
-		vb_comm_table[index]->head = 0;
-		vb_comm_table[index]->tail = 0;
-
-
 	} else {
 		// Port is already open
 
@@ -824,27 +828,27 @@ static int vb_comm_write(struct tty_struct *tty,
 		return -ENODEV;
 	}
 
-	mutex_lock( &vb_comm_lock[ index ] );
-
 	if (!vb_comm->open_count){
 		/* port was not opened */
 		goto exit;
 	}	
 
+	mutex_lock( &virtualbot_lock[ index ] );
+
 	virtualbot = virtualbot_table[ index ];
-	if (!virtualbot){
+	if (virtualbot == NULL){
 		pr_err("vb_comm: virtualbot table not set!");
 		goto exit;
 	}
 
 	virtualbot_tty = virtualbot->tty;
-	if (!virtualbot_tty){
+	if (virtualbot_tty == NULL){
 		pr_err("vb_comm: virtualbot tty not set!");
 		goto exit;
 	}
 
 	virtualbot_port = virtualbot_tty->port;
-	if (!virtualbot_port){
+	if (virtualbot_port == NULL){
 		pr_err("vb_comm: virtualbot port not set!");
 		goto exit;
 	}
@@ -864,7 +868,7 @@ static int vb_comm_write(struct tty_struct *tty,
 	retval = count;
 
 exit:
-	mutex_unlock( &vb_comm_lock[ index ] );
+	mutex_unlock( &virtualbot_lock[ index ] );
 
 	return retval;
 }
@@ -1080,6 +1084,9 @@ static void __exit virtualbot_exit(void)
 
 			/* shut down our timer and free the memory */
 			del_timer(&virtualbot->timer);
+
+			/* deallocate receive buffer */
+			kfree( virtualbot->recv_buffer.buf );
 			
 			/* destroy structure mutex */
 			mutex_destroy( &virtualbot_lock[ i ] );
