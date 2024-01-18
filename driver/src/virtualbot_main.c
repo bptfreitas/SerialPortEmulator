@@ -151,7 +151,7 @@ static void tiny_timer(struct timer_list *t)
 	int data_size = 1;
 
 	if (!tiny){
-		pr_warn("virtualbot: tty not set");
+		pr_warn("EmulatedPort: tty not set");
 		return;
 	}
 
@@ -159,7 +159,7 @@ static void tiny_timer(struct timer_list *t)
 	port = tty->port;
 
 	if (!port){
-		pr_warn("virtualbot: port not set on timer setup");
+		pr_warn("EmulatedPort: port not set on timer setup");
 		return;
 	}
 
@@ -167,7 +167,7 @@ static void tiny_timer(struct timer_list *t)
 	 * actually push the data through unless tty->low_latency is set */
 	for (i = 0; i < data_size; i++) {
 
-		pr_debug("virtualbot: flip buffer write");
+		pr_debug("EmulatedPort: flip buffer write");
 
 		if ( !tty_buffer_request_room(port, 1) )
 
@@ -200,7 +200,7 @@ static int virtualbot_open(struct tty_struct *tty, struct file *file)
 	index = tty->index;
 	virtualbot = virtualbot_table[index];
 
-	pr_debug("virtualbot: open port %d", index);
+	pr_debug("EmulatedPort: open port %d", index);
 
 	mutex_lock( &( virtualbot_global_port_lock[ index ] ) );
 
@@ -265,7 +265,7 @@ static int virtualbot_open(struct tty_struct *tty, struct file *file)
 
 	mutex_unlock(&virtualbot_global_port_lock[ index ]);
 
-	pr_debug("virtualbot: open port %d finished", index);
+	pr_debug("EmulatedPort: open port %d finished", index);
 
 	return 0;
 }
@@ -274,7 +274,7 @@ static void do_close(struct virtualbot_serial *virtualbot)
 {
 	int index = virtualbot->tty->index;
 
-	// pr_debug("virtualbot: do_close port %d", index);
+	// pr_debug("EmulatedPort: do_close port %d", index);
 
 	mutex_lock(&virtualbot_global_port_lock[ index ]);
 
@@ -296,7 +296,7 @@ static void do_close(struct virtualbot_serial *virtualbot)
 	tty_flip_buffer_push( & vb_comm_tty_port [ index ] );
 
 exit:
-	// pr_debug("virtualbot: do_close port %d finished", index);
+	// pr_debug("EmulatedPort: do_close port %d finished", index);
 	mutex_unlock(&virtualbot_global_port_lock[ index ]);
 }
 
@@ -304,15 +304,15 @@ static void virtualbot_close(struct tty_struct *tty, struct file *file)
 {
 	struct virtualbot_serial *virtualbot = tty->driver_data;
 
-	pr_debug("virtualbot: close port %d", tty->index);
+	pr_debug("EmulatedPort: close port %d", tty->index);
 
 	if (virtualbot){
-		pr_debug("virtualbot: do_close port %d", tty->index);
+		pr_debug("EmulatedPort: do_close port %d", tty->index);
 		do_close(virtualbot);
-		pr_debug("virtualbot: do_close port %d finished", tty->index);
+		pr_debug("EmulatedPort: do_close port %d finished", tty->index);
 	}
 
-	pr_debug("virtualbot: close port %d finished", tty->index);
+	pr_debug("EmulatedPort: close port %d finished", tty->index);
 }
 
 static int virtualbot_write(struct tty_struct *tty,
@@ -341,19 +341,19 @@ static int virtualbot_write(struct tty_struct *tty,
 	
 	vb_comm = vb_comm_table[ index ];
 	if (!vb_comm){
-		pr_err("virtualbot: vb_comm not set!");
+		pr_err("EmulatedPort: vb_comm not set!");
 		goto exit;
 	}
 
 	vb_comm_tty = vb_comm->tty;
 	if (!vb_comm_tty){
-		pr_err("virtualbot: vb_comm tty not set!");
+		pr_err("EmulatedPort: vb_comm tty not set!");
 		goto exit;
 	}
 
 	vb_comm_port = vb_comm_tty->port;
 	if (!vb_comm_port){
-		pr_err("virtualbot: vb_comm port not set!");
+		pr_err("EmulatedPort: vb_comm port not set!");
 		goto exit;
 	}
 
@@ -369,7 +369,7 @@ static int virtualbot_write(struct tty_struct *tty,
 	if ( count == 2 && buffer[0] == '\r' && buffer[1]=='\n' ){
 		retval = 2;
 
-		pr_debug("virtualbot: %s - sending end of line (\\r\\n)", __func__);
+		pr_debug("EmulatedPort: %s - sending end of line (\\r\\n)", __func__);
 
 		tty_insert_flip_char( vb_comm_port, 
 			'\r',
@@ -388,7 +388,7 @@ static int virtualbot_write(struct tty_struct *tty,
 	if ( count == 1 && buffer[0] == '\n' ){
 		retval = 1 ;
 
-		pr_debug("virtualbot: %s - sending end of line (\\n)", __func__);
+		pr_debug("EmulatedPort: %s - sending end of line (\\n)", __func__);
 
 		tty_insert_flip_char( vb_comm_port, 
 			'\n',
@@ -414,7 +414,7 @@ static int virtualbot_write(struct tty_struct *tty,
 			count : VIRTUALBOT_MAX_SIGNAL_LEN;
 
 		if ( count > VIRTUALBOT_MAX_SIGNAL_LEN ){
-			pr_warn("virtualbot: signal length (%d) is greater than maximum (%d) - discarding", 
+			pr_warn("EmulatedPort: signal length (%d) is greater than maximum (%d) - discarding", 
 				count,
 				VIRTUALBOT_MAX_SIGNAL_LEN );
 
@@ -435,14 +435,14 @@ static int virtualbot_write(struct tty_struct *tty,
 		pr_info("\n");
 	} else {
 		// Maximum number of signals stored achieved - warn kernel then exit
-		pr_warn("virtualbot: maximum number of stored signals achieved");
+		pr_warn("EmulatedPort: maximum number of stored signals achieved");
 	}
 #endif
 
-	pr_debug("virtualbot: %s - writing %d length of data", __func__, count);	
+	pr_debug("EmulatedPort: %s - writing %d length of data", __func__, count);	
 
 	for ( i = 0; i < count; i++ ){
-		pr_debug("%02x ", buffer[i]);
+		pr_debug("%c ", buffer[i]);
 
 		tty_insert_flip_char( vb_comm_port, 
 			buffer[i],
@@ -469,7 +469,7 @@ static unsigned int virtualbot_write_room(struct tty_struct *tty)
 	unsigned int room = -EINVAL, 
 		index = tty->index;
 
-	pr_debug("virtualbot: %s", __func__);
+	pr_debug("EmulatedPort: %s", __func__);
 
 	if (!virtualbot)
 		return -ENODEV;	
@@ -489,15 +489,21 @@ static unsigned int virtualbot_write_room(struct tty_struct *tty)
 exit:
 	mutex_unlock(&virtualbot_global_port_lock[ index ]);
 
-	pr_debug("virtualbot: room = %u", room );
+	pr_debug("EmulatedPort: room = %u", room );
 
 	return room;
 }
 
 #define RELEVANT_IFLAG(iflag) ((iflag) & (IGNBRK|BRKINT|IGNPAR|PARMRK|INPCK))
 
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6,0, 0)) 
+static void virtualbot_set_termios(struct tty_struct *tty, 
+	struct ktermios *old_termios)
+#else
 static void virtualbot_set_termios(struct tty_struct *tty, 
 	const struct ktermios *old_termios)
+#endif	
 {
 	unsigned int cflag;
 
@@ -792,7 +798,7 @@ static int vb_comm_open(struct tty_struct *tty, struct file *file)
 	index = tty->index;
 	vb_comm = vb_comm_table[ index ];
 
-	pr_debug("vb_comm: open port %d", index );
+	pr_debug("ExogenousPort: open port %d", index );
 
 	mutex_lock(&virtualbot_global_port_lock[ index ]);
 
@@ -830,7 +836,7 @@ static int vb_comm_open(struct tty_struct *tty, struct file *file)
 
 	mutex_unlock(&virtualbot_global_port_lock[ index ]);
 
-	pr_debug("vb-comm: open port %d finished", index);
+	pr_debug("ExogenousPort: open port %d finished", index);
 
 	return 0;
 }
@@ -856,7 +862,7 @@ static void vb_comm_do_close(struct vb_comm_serial *vb_comm)
 		// del_timer(&virtualbot->timer);
 	}
 exit:
-	//pr_debug("vb_comm: do_close finished");
+	//pr_debug("ExogenousPort: do_close finished");
 	mutex_unlock(&virtualbot_global_port_lock[ index ]);
 }
 
@@ -864,15 +870,15 @@ static void vb_comm_close(struct tty_struct *tty, struct file *file)
 {
 	struct vb_comm_serial *vb_comm = tty->driver_data;
 
-	pr_debug("vb_comm: close port %d", tty->index);
+	pr_debug("ExogenousPort: close port %d", tty->index);
 
 	if (vb_comm){
-		pr_debug("vb_comm: do_close port %d", tty->index);
+		pr_debug("ExogenousPort: do_close port %d", tty->index);
 		vb_comm_do_close(vb_comm);
-		pr_debug("vb_comm: do_close port %d finished", tty->index);
+		pr_debug("ExogenousPort: do_close port %d finished", tty->index);
 	}
 
-	pr_debug("vb_comm: close port %d finished", tty->index);
+	pr_debug("ExogenousPort: close port %d finished", tty->index);
 }
 
 
@@ -887,7 +893,7 @@ static unsigned int vb_comm_write_room(struct tty_struct *tty)
 
 	struct tty_port *port;
 
-	pr_debug("vb_comm: %s", __func__ );	
+	pr_debug("ExogenousPort: %s", __func__ );	
 	
 	room = -ENODEV;
 
@@ -901,7 +907,7 @@ static unsigned int vb_comm_write_room(struct tty_struct *tty)
 
 exit:
 
-	pr_debug("vb_comm: room = %u", room );
+	pr_debug("ExogenousPort: room = %u", room );
 
 	return room;
 
@@ -918,7 +924,7 @@ static int vb_comm_write(struct tty_struct *tty,
 	struct tty_struct *virtualbot_tty;
 	struct tty_port *virtualbot_port;
 
-	pr_debug("vb_comm: %s", __func__ );	
+	pr_debug("ExogenousPort: %s", __func__ );	
 
 	index = tty->index;
 	retval = -EINVAL;
@@ -937,19 +943,19 @@ static int vb_comm_write(struct tty_struct *tty,
 
 	virtualbot = virtualbot_table[ index ];
 	if (!virtualbot){
-		pr_err("vb_comm: virtualbot table not set!");
+		pr_err("ExogenousPort: virtualbot table not set!");
 		goto exit;
 	}
 
 	virtualbot_tty = virtualbot->tty;
 	if (!virtualbot_tty){
-		pr_err("vb_comm: virtualbot tty not set!");
+		pr_err("ExogenousPort: virtualbot tty not set!");
 		goto exit;
 	}
 
 	virtualbot_port = virtualbot_tty->port;
 	if (!virtualbot_port){
-		pr_err("vb_comm: virtualbot port not set!");
+		pr_err("ExogenousPort: virtualbot port not set!");
 		goto exit;
 	}
 	
@@ -961,7 +967,7 @@ static int vb_comm_write(struct tty_struct *tty,
 	if ( count == 2 && buffer[0] == '\r' && buffer[1]=='\n' ){
 		retval = 2;
 
-		pr_debug("vb-comm: %s - sending \\CR \\LF (\\r\\n)", __func__);
+		pr_debug("ExogenousPort: %s - sending \\CR \\LF (\\r\\n)", __func__);
 
 		tty_insert_flip_char( virtualbot_port, 
 			'\r',
@@ -981,7 +987,7 @@ static int vb_comm_write(struct tty_struct *tty,
 
 		retval = 1 ;
 
-		pr_debug("vb-comm: %s - sending end of line (\\n)", __func__);
+		pr_debug("ExogenousPort: %s - sending end of line (\\n)", __func__);
 
 		tty_insert_flip_char( virtualbot_port,
 			'\n',
@@ -992,10 +998,10 @@ static int vb_comm_write(struct tty_struct *tty,
 		goto exit;
 	}
 
-	pr_debug("vb-comm: %s - writing %d length of data", __func__, count);	
+	pr_debug("ExogenousPort: %s - writing %d length of data", __func__, count);	
 
 	for ( i = 0; i < count; i++ ){
-		pr_debug("%02x ", buffer[i]);
+		pr_debug("%c ", buffer[i]);
 
 		tty_insert_flip_char( virtualbot_port, 
 			buffer[i],
@@ -1076,18 +1082,18 @@ static int __init virtualbot_init(void)
 	tty_set_operations(virtualbot_tty_driver, 
 		&virtualbot_serial_ops);
 
-	pr_debug("virtualbot: set operations");
+	pr_debug("EmulatedPort: set operations");
 
 	for (i = 0; i < VIRTUALBOT_MAX_TTY_MINORS; i++) {
 
 		tty_port_init( &virtualbot_tty_port[ i ]);
-		pr_debug("virtualbot: port %i initiliazed", i);
+		pr_debug("EmulatedPort: port %i initiliazed", i);
 
 		tty_port_register_device( &virtualbot_tty_port[ i ], 
 			virtualbot_tty_driver, 
 			i, 
 			NULL);
-		pr_debug("virtualbot: port %i linked", i);
+		pr_debug("EmulatedPort: port %i linked", i);
 
 		// Starting the MAS signal list with a NULL pointer
 		MAS_signals_list_head[ i ] = NULL;
@@ -1098,14 +1104,14 @@ static int __init virtualbot_init(void)
 	retval = tty_register_driver(virtualbot_tty_driver);
 
 	if (retval) {
-		pr_err("virtualbot: failed to register virtualbot tty driver");
+		pr_err("EmulatedPort: failed to register virtualbot tty driver");
 
 		tty_driver_kref_put(virtualbot_tty_driver);
 
 		return retval;
 	}
 	
-	pr_info("virtualbot: driver initialized (" DRIVER_DESC " " DRIVER_VERSION  ")" );
+	pr_info("EmulatedPort: driver initialized (" DRIVER_DESC " " DRIVER_VERSION  ")" );
 
 	/*
 	 * 
@@ -1142,18 +1148,18 @@ static int __init virtualbot_init(void)
 	tty_set_operations(vb_comm_tty_driver, 
 		&vb_comm_serial_ops);
 
-	pr_debug("vb-comm: set operations");
+	pr_debug("ExogenousPort: set operations");
 
 	for (i = 0; i < VIRTUALBOT_MAX_TTY_MINORS; i++) {
 
 		tty_port_init(& vb_comm_tty_port[ i ] );
-		pr_debug("vb-comm: port %i initiliazed", i);
+		pr_debug("ExogenousPort: port %i initiliazed", i);
 
 		tty_port_register_device( & vb_comm_tty_port[ i ], 
 			vb_comm_tty_driver, 
 			i, 
 			NULL);
-		pr_debug("vb-comm: port %i linked", i);
+		pr_debug("ExogenousPort: port %i linked", i);
 
 		// Port state is initially NULL
 		vb_comm_table[ i ] = NULL;
@@ -1165,7 +1171,7 @@ static int __init virtualbot_init(void)
 
 	if (retval) {
 
-		pr_err("vb-comm: failed to register vb-comm tty driver");
+		pr_err("ExogenousPort: failed to register vb-comm tty driver");
 
 		tty_driver_kref_put(vb_comm_tty_driver);
 
@@ -1176,7 +1182,7 @@ static int __init virtualbot_init(void)
 		mutex_init( &virtualbot_global_port_lock[ i ] );
 	}
 
-	pr_info("vb-comm: driver initialized (" DRIVER_DESC " " DRIVER_VERSION  ")" );
+	pr_info("ExogenousPort: driver initialized (" DRIVER_DESC " " DRIVER_VERSION  ")" );
 
 	return retval;
 }
@@ -1193,25 +1199,25 @@ static void __exit virtualbot_exit(void)
 		
 		tty_unregister_device(virtualbot_tty_driver, i);
 		
-		pr_debug("virtualbot: device %d unregistered" , i);
+		pr_debug("EmulatedPort: device %d unregistered" , i);
 
 		tty_port_destroy(virtualbot_tty_port + i);
 
-		pr_debug("virtualbot: port %i destroyed", i);
+		pr_debug("EmulatedPort: port %i destroyed", i);
 	}
 
 	tty_unregister_driver(virtualbot_tty_driver);
 
 	tty_driver_kref_put(virtualbot_tty_driver);
 
-	pr_debug("virtualbot: driver unregistered");
+	pr_debug("EmulatedPort: driver unregistered");
 
 	/* shut down all of the timers and free the memory */
 	for (i = 0; i < VIRTUALBOT_MAX_TTY_MINORS; i++) {
 
 		virtualbot = virtualbot_table[i];
 
-		pr_debug("virtualbot: freeing VB %i", i);
+		pr_debug("EmulatedPort: freeing VB %i", i);
 
 		if (virtualbot) {
 			/* close the port */
@@ -1233,7 +1239,7 @@ static void __exit virtualbot_exit(void)
 
 				signal = list_entry(pos, struct MAS_signal, MAS_signals_list);
 						
-				pr_debug("virtualbot: delete %s", signal->data );
+				pr_debug("EmulatedPort: delete %s", signal->data );
 
 				list_del( pos );
 			}
@@ -1252,11 +1258,11 @@ static void __exit virtualbot_exit(void)
 
 		tty_unregister_device(vb_comm_tty_driver, i);
 		
-		pr_debug("vb-comm: device %d unregistered" , i);
+		pr_debug("ExogenousPort: device %d unregistered" , i);
 
 		tty_port_destroy(vb_comm_tty_port + i);
 
-		pr_debug("vb-comm: port %i destroyed", i);
+		pr_debug("ExogenousPort: port %i destroyed", i);
 	}
 
 	tty_unregister_driver(vb_comm_tty_driver);
@@ -1268,7 +1274,7 @@ static void __exit virtualbot_exit(void)
 
 		vb_comm = vb_comm_table[i];
 
-		pr_debug("vb-comm: freeing VB %i", i);
+		pr_debug("ExogenousPort: freeing VB %i", i);
 
 		if (vb_comm) {
 			/* close thvirtualbote port */
