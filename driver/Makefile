@@ -23,6 +23,9 @@ setup_dev_environment:
 all: 
 	$(MAKE) -C $(KDIR) M=$$PWD modules
 
+all-dev:
+	$(MAKE) -C $(KDIR) M=$$PWD EXTRA_CFLAGS="-DDEBUG" modules 
+
 clean:
 	$(MAKE) -C $(KDIR) M=$$PWD clean
 
