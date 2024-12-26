@@ -20,7 +20,7 @@
 #define VIRTUALBOT_DEBUG 1
 
 // Maximum numbers of Virtualbot devices
-#define VIRTUALBOT_MAX_TTY_MINORS 4
+#define VIRTUALBOT_MAX_TTY_MINORS VIRTUALBOT_NUMBER_OF_PORTS
 
 // Maximum number of characters for a signal
 #define VIRTUALBOT_MAX_SIGNAL_LEN 262

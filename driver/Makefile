@@ -9,10 +9,15 @@ VIRTUALBOT_NAME="virtualbot"
 # VirtualBot device name
 VIRTUALBOT_DEVICE=/dev/virtualbot
 
-# Real Arduino device
-# VIRTUALBOT_DEVICE=/dev/ttyACM0
+# Number of virtual ports to make
+VIRTUALBOT_NUMBER_OF_PORTS=4
 
-.PHONY: all clean setup_dev_environment modules_install set_debug install modules_install tests
+COMPILE_FLAGS=-DVIRTUALBOT_NUMBER_OF_PORTS=$(VIRTUALBOT_NUMBER_OF_PORTS)
+
+# Real Arduino device
+# VIRTUALBOT_DEVICE=/dev/ttyACM0Os seguintes pacotes foram instalados automaticamente e já não são necessários:
+
+.PHONY: all all-dev clean setup_dev_environment modules_install set_debug install modules_install tests
 
 # setup-environment: configures environment for module development
 # For Debian systems, start by using 'apt install make binutils'
@@ -21,10 +26,14 @@ setup_dev_environment:
 	sudo apt install linux-headers-`uname -r` python3-serial make gcc binutils
 
 all: 
-	$(MAKE) -C $(KDIR) M=$$PWD modules
+	$(MAKE) -C $(KDIR) M=$$PWD \
+		EXTRA_CFLAGS="$(COMPILE_FLAGS)" \
+		modules
 
 all-dev:
-	$(MAKE) -C $(KDIR) M=$$PWD EXTRA_CFLAGS="-DDEBUG" modules 
+	$(MAKE) -C $(KDIR) M=$$PWD \
+		EXTRA_CFLAGS="-DDEBUG $(COMPILE_FLAGS)"\
+		modules 		 \
 
 clean:
 	$(MAKE) -C $(KDIR) M=$$PWD clean
