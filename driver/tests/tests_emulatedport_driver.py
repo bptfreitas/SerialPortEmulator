@@ -36,26 +36,21 @@ class VirtualBotParameters(dict):
                     continue
 
                 try:
-                    if contents[ index + 1 ].strip() == "VIRTUALBOT_MAX_SIGNAL_LEN":
-                        self.__parameters["VIRTUALBOT_MAX_SIGNAL_LEN"] = int( contents[ index + 2 ].strip() )
-
-                    elif contents[ index + 1 ].strip() == "VIRTUALBOT_TOTAL_SIGNALS":
-                        self.__parameters["VIRTUALBOT_TOTAL_SIGNALS"] = int( contents[ index + 2 ].strip() )
-
-                    elif contents[ index + 1 ].strip() == "VIRTUALBOT_MAX_TTY_MINORS":
-                        self.__parameters["VIRTUALBOT_MAX_TTY_MINORS"] = int( contents[ index + 2 ].strip() )
-
-                    elif contents[ index + 1 ].strip() == "VIRTUALBOT_TTY_MAJOR":
-                        self.__parameters["VIRTUALBOT_TTY_MYZAJOR"] = int( contents[ index + 2 ].strip() )
-
-                    elif contents[ index + 1 ].strip() == "VIRTUALBOT_TTY_NAME":
-                        self.__parameters["VIRTUALBOT_TTY_NAME"] = contents[ index + 2 ].strip()
-
-                    elif contents[ index + 1 ].strip() == "VB_COMM_TTY_NAME":
-                        self.__parameters["VB_COMM_TTY_NAME"] = contents[ index + 2 ].strip()
+                    constant = contents[ index + 1 ].strip()                    
                 except Exception as err:
                     sys.stderr.write("Invalid parameter: " + str(err) + '\n')
 
+                try:
+                    value = int( contents[ index + 2 ].strip() )
+                except Exception as err:
+                    sys.stderr.write("Invalid parameter: " + str(err) + '\n')
+
+                try:
+                    value = str( ''.join( [ x.strip() for x in contents[ index + 2 : ] ] ) )
+                except Exception as err:
+                    sys.stderr.write("Invalid parameter: " + str(err) + '\n')
+
+                self.__parameters[ constant  ] = value                    
 
                 # now for the comm part
 
@@ -227,7 +222,7 @@ class TestSerialObject(unittest.TestCase):
             9600, 
             timeout = 3 )
 
-        comm1.write( bytes("XYZ\n", 'utf-8') )
+        self.assertWarns( comm1.write( bytes("XYZ\n", 'utf-8') ) )
 
         time.sleep(2)
 
@@ -259,7 +254,7 @@ class TestSerialObject(unittest.TestCase):
             9600, 
             timeout = 3 )
 
-        comm1.write( bytes("XYZ\n", 'utf-8') )
+        self.assertRaises( Exception, comm1.write( bytes("XYZ\n", 'utf-8') ) )
 
         time.sleep(2)
 
