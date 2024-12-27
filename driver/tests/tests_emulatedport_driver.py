@@ -35,23 +35,27 @@ class VirtualBotParameters(dict):
                 except ValueError:
                     continue
 
-                if contents[ index + 1 ].strip() == "VIRTUALBOT_MAX_SIGNAL_LEN":
-                    self.__parameters["VIRTUALBOT_MAX_SIGNAL_LEN"] = int( contents[ index + 2 ].strip() )
+                try:
+                    if contents[ index + 1 ].strip() == "VIRTUALBOT_MAX_SIGNAL_LEN":
+                        self.__parameters["VIRTUALBOT_MAX_SIGNAL_LEN"] = int( contents[ index + 2 ].strip() )
 
-                elif contents[ index + 1 ].strip() == "VIRTUALBOT_TOTAL_SIGNALS":
-                    self.__parameters["VIRTUALBOT_TOTAL_SIGNALS"] = int( contents[ index + 2 ].strip() )
+                    elif contents[ index + 1 ].strip() == "VIRTUALBOT_TOTAL_SIGNALS":
+                        self.__parameters["VIRTUALBOT_TOTAL_SIGNALS"] = int( contents[ index + 2 ].strip() )
 
-                elif contents[ index + 1 ].strip() == "VIRTUALBOT_MAX_TTY_MINORS":
-                    self.__parameters["VIRTUALBOT_MAX_TTY_MINORS"] = int( contents[ index + 2 ].strip() )
+                    elif contents[ index + 1 ].strip() == "VIRTUALBOT_MAX_TTY_MINORS":
+                        self.__parameters["VIRTUALBOT_MAX_TTY_MINORS"] = int( contents[ index + 2 ].strip() )
 
-                elif contents[ index + 1 ].strip() == "VIRTUALBOT_TTY_MAJOR":
-                    self.__parameters["VIRTUALBOT_TTY_MAJOR"] = int( contents[ index + 2 ].strip() )
+                    elif contents[ index + 1 ].strip() == "VIRTUALBOT_TTY_MAJOR":
+                        self.__parameters["VIRTUALBOT_TTY_MYZAJOR"] = int( contents[ index + 2 ].strip() )
 
-                elif contents[ index + 1 ].strip() == "VIRTUALBOT_TTY_NAME":
-                    self.__parameters["VIRTUALBOT_TTY_NAME"] = contents[ index + 2 ].strip()
+                    elif contents[ index + 1 ].strip() == "VIRTUALBOT_TTY_NAME":
+                        self.__parameters["VIRTUALBOT_TTY_NAME"] = contents[ index + 2 ].strip()
 
-                elif contents[ index + 1 ].strip() == "VB_COMM_TTY_NAME":
-                    self.__parameters["VB_COMM_TTY_NAME"] = contents[ index + 2 ].strip()                    
+                    elif contents[ index + 1 ].strip() == "VB_COMM_TTY_NAME":
+                        self.__parameters["VB_COMM_TTY_NAME"] = contents[ index + 2 ].strip()
+                except Exception as err:
+                    sys.stderr.write("Invalid parameter: " + str(err) + '\n')
+
 
                 # now for the comm part
 
@@ -100,12 +104,27 @@ class TestSerialObject(unittest.TestCase):
         self.__EmulatedPort = "/dev/ttyEmulatedPort"
 
         self.__Exogenous = "/dev/ttyExogenous"
+
+        self.__test_item = 0;
         
 
     def setUp(self):
 
         # Clearing the kernel log for the tests
-        subprocess.run( [ "sudo" , "dmesg" , "-C" ] )        
+        subprocess.run( [ "sudo" , "dmesg" , "-C" ] )
+
+    def tearDown(self):
+
+        filename = "exec{0}.log".format( self.__test_item );
+
+        self.__test_item += 1 
+
+        with open(filename, "w") as output:
+
+            ret = subprocess.run([ "sudo" , "dmesg" , "-T" ], 
+                capture_output=True )
+
+            output.write( ret.stdout.decode("utf-8") )
         
 
 	# Check is you can instantiate a Serial object with the VirtualBot driver
@@ -155,7 +174,6 @@ class TestSerialObject(unittest.TestCase):
 
         time.sleep(2)
 
-
         comm1.write( bytes("XYZ\n", 'utf-8') )
 
         # print ( comm2.readline().decode() )
@@ -163,6 +181,9 @@ class TestSerialObject(unittest.TestCase):
         read_thread.join()
 
         self.assertEqual( data_in[ 'value' ]  , "XYZ\n" )
+
+        comm1.close()
+        comm2.close()
 
 
     def test_05_Exogenous_Write_on_EmulatedPort(self):
@@ -178,8 +199,7 @@ class TestSerialObject(unittest.TestCase):
         data_in = {} 
 
         read_thread = threading.Thread( target=read_serial_port, 
-            args=( data_in, comm2 )
-            )
+            args=( data_in, comm2 ) )
 
         read_thread.start()
 
@@ -187,13 +207,82 @@ class TestSerialObject(unittest.TestCase):
 
         time.sleep(2)
 
-        comm1.write( bytes("XYZ\n", 'utf-8') )
+        comm1.write( bytes( "XYZ\n", 'utf-8' ) )
 
         # print ( comm2.readline().decode() )
 
         read_thread.join()
 
         self.assertEqual( data_in[ 'value' ]  , "XYZ\n" )
+
+        comm1.close();
+        comm2.close();        
+
+
+    def test_06_EmulatedPort_DontWriteWithExogenousClosed(self):
+
+        # self.skipTest("Not implemented")
+
+        comm1 = serial.Serial( str( self.__EmulatedPort + "0" ), 
+            9600, 
+            timeout = 3 )
+
+        comm1.write( bytes("XYZ\n", 'utf-8') )
+
+        time.sleep(2)
+
+        comm2 = serial.Serial( str( self.__Exogenous + "0" ),
+            9600, 
+            timeout = 3 )
+
+        data_in = { }
+
+        read_thread = threading.Thread(
+            target=read_serial_port, 
+            args=( data_in, comm2 ) )
+
+        read_thread.start()            
+
+        time.sleep(2)
+
+        comm1.write( bytes("ABCDE\n", 'utf-8') )
+
+        read_thread.join()
+
+        self.assertEqual( data_in[ 'value' ]  , "ABCDE\n" )
+
+    def test_07_Exogenous_DontWriteWithEmulatedPortClosed(self):
+
+        # self.skipTest("Not implemented")
+
+        comm1 = serial.Serial( str( self.__Exogenous + "0" ), 
+            9600, 
+            timeout = 3 )
+
+        comm1.write( bytes("XYZ\n", 'utf-8') )
+
+        time.sleep(2)
+
+        comm2 = serial.Serial( str( self.__EmulatedPort + "0" ),
+            9600, 
+            timeout = 3 )
+
+        data_in = { }
+
+        read_thread = threading.Thread(
+            target=read_serial_port, 
+            args=( data_in, comm2 ) )
+
+        read_thread.start()            
+
+        time.sleep(2)
+
+        comm1.write( bytes("ABCDE\n", 'utf-8') )
+
+        read_thread.join()
+
+        self.assertEqual( data_in[ 'value' ]  , "ABCDE\n" )        
+            
 
 if __name__ == '__main__':
     unittest.main()

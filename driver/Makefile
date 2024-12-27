@@ -25,7 +25,7 @@ COMPILE_FLAGS=-DVIRTUALBOT_NUMBER_OF_PORTS=$(VIRTUALBOT_NUMBER_OF_PORTS)
 setup_dev_environment:
 	sudo apt install linux-headers-`uname -r` python3-serial make gcc binutils
 
-all: 
+all:
 	$(MAKE) -C $(KDIR) M=$$PWD \
 		EXTRA_CFLAGS="$(COMPILE_FLAGS)" \
 		modules
