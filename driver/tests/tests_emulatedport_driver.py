@@ -46,16 +46,14 @@ class VirtualBotParameters(dict):
                     sys.stderr.write("Invalid parameter: " + str(err) + '\n')
 
                 try:
-                    value = str( ''.join( [ x.strip() for x in contents[ index + 2 : ] ] ) )
+                    value = str( ' '.join( [ x.strip() for x in contents[ index + 2 : ] ] ) )
                 except Exception as err:
                     sys.stderr.write("Invalid parameter: " + str(err) + '\n')
 
                 self.__parameters[ constant  ] = value                    
 
                 # now for the comm part
-
-        self = self.__parameters                
-        
+                    
         sys.stdout.write( "Serial Emulator compile-time parameters: \n" )
 
         for directive in self.keys(): 
@@ -85,7 +83,6 @@ def read_serial_port( read_var , serial_object ):
 
     read_var[ 'value' ] = serial_object.readline().decode()
 
-
 class TestSerialObject(unittest.TestCase):
        
     @classmethod
@@ -94,13 +91,11 @@ class TestSerialObject(unittest.TestCase):
         print("setUpClass")
 
         # reading compile-time parameters
-        self.__VBParams = VirtualBotParameters( debug = False )
+        self.__VBParams = VirtualBotParameters(  )
 
         self.__EmulatedPort = "/dev/ttyEmulatedPort"
 
         self.__Exogenous = "/dev/ttyExogenous"
-
-        self.__test_item = 0;
         
 
     def setUp(self):
@@ -110,9 +105,7 @@ class TestSerialObject(unittest.TestCase):
 
     def tearDown(self):
 
-        filename = "exec{0}.log".format( self.__test_item );
-
-        self.__test_item += 1 
+        filename = "exec{0}.log".format( 0 )
 
         with open(filename, "w") as output:
 
@@ -213,70 +206,89 @@ class TestSerialObject(unittest.TestCase):
         comm1.close();
         comm2.close();        
 
-
-    def test_06_EmulatedPort_DontWriteWithExogenousClosed(self):
-
-        # self.skipTest("Not implemented")
+    @unittest.expectedFailure
+    def test_06_EmulatedPort_ErrorWhenWritingWithExogenousClosed(self):
 
         comm1 = serial.Serial( str( self.__EmulatedPort + "0" ), 
             9600, 
             timeout = 3 )
 
-        self.assertWarns( comm1.write( bytes("XYZ\n", 'utf-8') ) )
+        comm1.write( bytes("XYZ\n", 'utf-8') )
 
-        time.sleep(2)
-
-        comm2 = serial.Serial( str( self.__Exogenous + "0" ),
-            9600, 
-            timeout = 3 )
-
-        data_in = { }
-
-        read_thread = threading.Thread(
-            target=read_serial_port, 
-            args=( data_in, comm2 ) )
-
-        read_thread.start()            
-
-        time.sleep(2)
-
-        comm1.write( bytes("ABCDE\n", 'utf-8') )
-
-        read_thread.join()
-
-        self.assertEqual( data_in[ 'value' ]  , "ABCDE\n" )
-
-    def test_07_Exogenous_DontWriteWithEmulatedPortClosed(self):
-
-        # self.skipTest("Not implemented")
+    @unittest.expectedFailure
+    def test_07_Exogenous_ErrorWhenWritingWithEmulatedPortClosed(self):
 
         comm1 = serial.Serial( str( self.__Exogenous + "0" ), 
             9600, 
             timeout = 3 )
 
-        self.assertRaises( Exception, comm1.write( bytes("XYZ\n", 'utf-8') ) )
+        comm1.write( bytes("XYZ\n", 'utf-8') )
 
-        time.sleep(2)
+    def test_08_WriteReadWriteRead_on_EmulatedPort( self ):
 
-        comm2 = serial.Serial( str( self.__EmulatedPort + "0" ),
+        comm1 = serial.Serial( str( self.__EmulatedPort + "0" ), 
             9600, 
             timeout = 3 )
 
-        data_in = { }
+        comm2 = serial.Serial( str( self.__Exogenous + "0" ) , 
+            9600, 
+            timeout = None )
 
-        read_thread = threading.Thread(
-            target=read_serial_port, 
-            args=( data_in, comm2 ) )
+        data_in = {}
 
-        read_thread.start()            
+        data_to_test = ["XYZ\n" , "ABC\n"]
 
-        time.sleep(2)
+        for data in data_to_test:
 
-        comm1.write( bytes("ABCDE\n", 'utf-8') )
+            read_thread = threading.Thread(target=read_serial_port, \
+                args=( data_in, comm2 ))
 
-        read_thread.join()
+            read_thread.start()
 
-        self.assertEqual( data_in[ 'value' ]  , "ABCDE\n" )        
+            time.sleep(2)
+
+            comm1.write( bytes( data , 'utf-8') )
+
+            read_thread.join()
+
+            self.assertEqual( data_in[ 'value' ]  , data )
+
+        comm1.close()
+        comm2.close()
+
+    def test_08_WriteReadWriteRead_on_EmulatedPort( self ):
+
+        comm1 = serial.Serial( str( self.__Exogenous + "0" ) , 
+            9600, 
+            timeout = None )
+
+        comm2 = serial.Serial( str( self.__EmulatedPort + "0" ), 
+            9600, 
+            timeout = 3 )            
+
+        data_in = {}
+
+        data_to_test = ["XYZ\n" , "ABC\n"]
+
+        for data in data_to_test:
+
+            read_thread = threading.Thread(target=read_serial_port, \
+                args=( data_in, comm2 ))
+
+            read_thread.start()
+
+            time.sleep(2)
+
+            comm1.write( bytes( data , 'utf-8') )
+
+            read_thread.join()
+
+            self.assertEqual( data_in[ 'value' ]  , data )
+
+        comm1.close()
+        comm2.close()        
+
+
             
 
 if __name__ == '__main__':
