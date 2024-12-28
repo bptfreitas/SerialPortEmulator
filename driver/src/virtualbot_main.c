@@ -96,12 +96,6 @@ struct vb_comm_serial {
 
 };
 
-
-/** 
- * This mutex locks the global ports of VirtualBot and its Commander
-*/
-static struct mutex virtualbot_global_port_lock[ VIRTUALBOT_MAX_TTY_MINORS ];
-
 /** 
  * This mutex locks the vb_comm_serial structure
 */
@@ -196,6 +190,7 @@ static int virtualbot_open(struct tty_struct *tty, struct file *file)
 
 		virtualbot_table[index] = virtualbot;
 
+#ifdef __MEM_LEAK_HERE__
 		/**
 		 *  Allocating receive buffer , 4 KiB default size
 		 * */
@@ -205,6 +200,7 @@ static int virtualbot_open(struct tty_struct *tty, struct file *file)
 		virtualbot_table[index]->recv_buffer.buf = kmalloc( 
 			sizeof(char) * 4096,
 			GFP_KERNEL );
+#endif		
 
 		// pointer to the tty struct
 		virtualbot_table[index]->tty = tty;
@@ -221,7 +217,6 @@ static int virtualbot_open(struct tty_struct *tty, struct file *file)
 	} else {
 		// Already set		
 	}
-
 
 	/* save our structure within the tty structure */
 	tty->driver_data = virtualbot;
@@ -327,13 +322,26 @@ static int virtualbot_write(struct tty_struct *tty,
 
 	//struct MAS_signal *new_MAS_signal;
 
+	mutex_lock(&virtualbot_lock[ index ]);
+
 	if (!virtualbot){
 		pr_warn("virtualbot: %s driver data %d not set!", __func__, index);
+		mutex_unlock(&virtualbot_lock[ index ]);
 		return -ENODEV;
 	}
 
+	if ( virtualbot->open_count == 0 ){
+		/* port was not opened */
+		pr_warn("virtualbot: %s - port %d not open!", __func__, index);
+		mutex_unlock(&virtualbot_lock[ index ]);		
+		return -ENODEV;
+	}	
+
+	mutex_unlock(&virtualbot_lock[ index ]);
+
+
 	mutex_lock(&vb_comm_lock[ index ]);
-	
+		
 	vb_comm = vb_comm_table[ index ];
 	if (vb_comm == NULL){
 		pr_warn("virtualbot: %s - vb_comm %d not set!", __func__, index);
@@ -351,13 +359,6 @@ static int virtualbot_write(struct tty_struct *tty,
 	vb_comm_port = vb_comm_tty->port;
 	if (vb_comm_port == NULL){
 		pr_warn("virtualbot: %s - vb_comm %d port not set!", __func__, index);
-		retval = -ENODEV;
-		goto exit;
-	}
-
-	if ( virtualbot->open_count == 0 ){
-		/* port was not opened */
-		pr_warn("virtualbot: %s - port %d not open!", __func__, index);
 		retval = -ENODEV;
 		goto exit;
 	}
@@ -568,16 +569,51 @@ static int virtualbot_tiocmset(struct tty_struct *tty, unsigned int set,
 static int virtualbot_proc_show(struct seq_file *m, void *v)
 {
 	struct virtualbot_serial *virtualbot;
+	struct vb_comm_serial *vb_comm;
 	int i;
 
-	seq_printf(m, "virtualbot: driver %s\n", DRIVER_VERSION);
-	
-	for (i = 0; i < VIRTUALBOT_MAX_TTY_MINORS; ++i) {
-		virtualbot = virtualbot_table[i];
-		if (virtualbot == NULL)
-			continue;
+	int emulated_port_open_count, vb_comm_open_count;
 
-		seq_printf(m, "port %d open\n", i);
+	seq_printf(m, "VirtualBot Driver %s\n", DRIVER_VERSION);
+		
+	for (i = 0; i < VIRTUALBOT_MAX_TTY_MINORS; ++i) {
+
+		mutex_lock( &virtualbot_lock[ i ] ) ;
+
+		virtualbot = virtualbot_table[i];
+		if (virtualbot == NULL){
+
+			mutex_unlock( &virtualbot_lock[ i ] ) ;
+			continue;
+			
+		}
+
+		emulated_port_open_count = virtualbot->open_count;
+
+		mutex_unlock( &virtualbot_lock[ i ] ) ;
+
+		seq_printf(m, "Emulated Port %d open (count = %d)\n", 
+			i, 
+			emulated_port_open_count);
+	}
+
+	for (i = 0; i < VIRTUALBOT_MAX_TTY_MINORS; ++i) {
+
+		mutex_lock( &vb_comm_lock[ i ] ) ;
+
+		vb_comm = vb_comm_table[i];
+		if (vb_comm == NULL){
+			mutex_unlock( &vb_comm_lock[ i ] ) ;
+			continue;
+		}
+
+		vb_comm_open_count = vb_comm->open_count;
+
+		mutex_unlock( &vb_comm_lock[ i ] ) ;
+
+		seq_printf(m, "Exogenous %d open (count = %d)\n", 
+			i, 
+			vb_comm_open_count);
 	}
 
 	return 0;
@@ -888,19 +924,25 @@ static int vb_comm_write(struct tty_struct *tty,
 
 	index = tty->index;
 	retval = -EINVAL;
+
+	mutex_lock( &vb_comm_lock[ index ] );
+
 	vb_comm = tty->driver_data;
 
 	if (!vb_comm){
 		pr_warn("vb_comm: %s - virtualbot %d driver data not set!", __func__, index);
+		mutex_unlock( &vb_comm_lock[ index ] );
 		return -ENODEV;
 	}
 
-	if (!vb_comm->open_count){
+	if (vb_comm->open_count <= 0){
 		/* port was not opened */
-		pr_warn("vb_comm: %s - virtualbot %d not open!", __func__, index);
-		retval = -ENODEV;
-		goto exit;
-	}	
+		pr_warn("vb_comm: %s - virtualbot %d not open!", __func__, index);		
+		mutex_unlock( &vb_comm_lock[ index ] );
+		return -ENODEV;
+	}
+
+	mutex_unlock( &vb_comm_lock[ index ] );
 
 	mutex_lock( &virtualbot_lock[ index ] );
 
@@ -1114,10 +1156,6 @@ static int __init virtualbot_init(void)
 		return retval;
 	}
 
-	for ( i = 0; i < VIRTUALBOT_MAX_TTY_MINORS; i++ ){
-		mutex_init( &virtualbot_global_port_lock[ i ] );
-	}
-
 	pr_info("Serial Port Emulator initialized (" DRIVER_DESC " " DRIVER_VERSION  ")" );
 
 	return retval;
@@ -1216,8 +1254,6 @@ static void __exit virtualbot_exit(void)
 			vb_comm_table[i] = NULL;
 		}
 	}
-
-	mutex_destroy( &virtualbot_global_port_lock[ i ] );
 }
 
 module_init(virtualbot_init);
