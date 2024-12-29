@@ -255,6 +255,8 @@ static void do_close(struct virtualbot_serial *virtualbot)
 
 		kfree( virtualbot_table[index] ) ;
 
+		virtualbot->open_count = 0;
+
 		virtualbot_table[index] = NULL;
 	}
 exit:
@@ -976,7 +978,7 @@ static int vb_comm_write(struct tty_struct *tty,
 
 		tty_insert_flip_char( virtualbot_port, 
 			buffer[i],
-			TTY_NORMAL);
+			TTY_NORMAL );
 	}
 
 	tty_flip_buffer_push( virtualbot_port );
