@@ -30,34 +30,40 @@ class VirtualBotParameters(dict):
 
                 contents = [ directive.strip() for directive in line.split(" ") ]
 
+                # print( contents )
+
                 try:                    
                     index = contents.index("#define")
                 except ValueError:
+                    sys.stderr.write( "Not a #define\n")
                     continue
-
+                
                 try:
                     constant = contents[ index + 1 ].strip()                    
                 except Exception as err:
-                    sys.stderr.write("Invalid parameter: " + str(err) + '\n')
+                    sys.stderr.write("Invalid constant: " + str(err) + '\n')
 
                 try:
                     value = int( contents[ index + 2 ].strip() )
+                    self.__parameters[ constant  ] = value
+                    continue
                 except Exception as err:
-                    sys.stderr.write("Invalid parameter: " + str(err) + '\n')
-
+                    sys.stderr.write("Not an integer: " + str(err) + '\n')
+                
                 try:
                     value = str( ' '.join( [ x.strip() for x in contents[ index + 2 : ] ] ) )
+                    self.__parameters[ constant  ] = value
+                    continue        
                 except Exception as err:
-                    sys.stderr.write("Invalid parameter: " + str(err) + '\n')
-
-                self.__parameters[ constant  ] = value                    
+                    sys.stderr.write("Not a string: " + str(err) + '\n')                
 
                 # now for the comm part
                     
         sys.stdout.write( "Serial Emulator compile-time parameters: \n" )
 
-        for directive in self.keys(): 
-            sys.stdout.write( directive + "\t" + str(self[directive])  + "\n" )
+        for directive in self.__parameters.keys(): 
+
+            sys.stdout.write( directive + "\t" + str( self.__parameters[directive] ) + "\n" )
 
         sys.stdout.write( "\n" )
 
@@ -65,19 +71,6 @@ class VirtualBotParameters(dict):
         return self.__parameters[index]
 
 
-""" try:
-	comm = serial.Serial("/dev/ttyVB0", 9600)
-	
-	# comm.open()
-	
-	# comm.close()
-	
-	sys.exit(0)
-
-except Exception as inst:
-	print(inst)
-	sys.exit(-1)
- """
 
 def read_serial_port( read_var , serial_object ):
 
@@ -152,88 +145,6 @@ class TestSerialObject(unittest.TestCase):
             9600, 
             timeout = None )
 
-        data_in = {} 
-
-        read_thread = threading.Thread(target=read_serial_port, args=( data_in, comm2 ))
-
-        read_thread.start()
-
-        # recv = comm2.readline().decode()
-
-        time.sleep(2)
-
-        comm1.write( bytes("XYZ\n", 'utf-8') )
-
-        # print ( comm2.readline().decode() )
-
-        read_thread.join()
-
-        self.assertEqual( data_in[ 'value' ]  , "XYZ\n" )
-
-        comm1.close()
-        comm2.close()
-
-
-    def test_05_Exogenous_Write_on_EmulatedPort(self):
-
-        comm1 = serial.Serial( str( self.__Exogenous + "0" ), 
-            9600, 
-            timeout=3)
-
-        comm2 = serial.Serial( str( self.__EmulatedPort + "0" ) , 
-            9600, 
-            timeout = None )
-
-        data_in = {} 
-
-        read_thread = threading.Thread( target=read_serial_port, 
-            args=( data_in, comm2 ) )
-
-        read_thread.start()
-
-        # recv = comm2.readline().decode()
-
-        time.sleep(2)
-
-        comm1.write( bytes( "XYZ\n", 'utf-8' ) )
-
-        # print ( comm2.readline().decode() )
-
-        read_thread.join()
-
-        self.assertEqual( data_in[ 'value' ]  , "XYZ\n" )
-
-        comm1.close();
-        comm2.close();        
-
-    @unittest.expectedFailure
-    def test_06_EmulatedPort_ErrorWhenWritingWithExogenousClosed(self):
-
-        comm1 = serial.Serial( str( self.__EmulatedPort + "0" ), 
-            9600, 
-            timeout = 3 )
-
-        comm1.write( bytes("XYZ\n", 'utf-8') )
-
-    @unittest.expectedFailure
-    def test_07_Exogenous_ErrorWhenWritingWithEmulatedPortClosed(self):
-
-        comm1 = serial.Serial( str( self.__Exogenous + "0" ), 
-            9600, 
-            timeout = 3 )
-
-        comm1.write( bytes("XYZ\n", 'utf-8') )
-
-    def test_08_WriteReadWriteRead_on_EmulatedPort( self ):
-
-        comm1 = serial.Serial( str( self.__EmulatedPort + "0" ), 
-            9600, 
-            timeout = 3 )
-
-        comm2 = serial.Serial( str( self.__Exogenous + "0" ) , 
-            9600, 
-            timeout = None )
-
         data_in = {}
 
         data_to_test = ["XYZ\n" , "ABC\n"]
@@ -256,7 +167,8 @@ class TestSerialObject(unittest.TestCase):
         comm1.close()
         comm2.close()
 
-    def test_08_WriteReadWriteRead_on_EmulatedPort( self ):
+
+    def test_05_Exogenous_Write_on_EmulatedPort(self):
 
         comm1 = serial.Serial( str( self.__Exogenous + "0" ) , 
             9600, 
@@ -286,10 +198,25 @@ class TestSerialObject(unittest.TestCase):
             self.assertEqual( data_in[ 'value' ]  , data )
 
         comm1.close()
-        comm2.close()        
+        comm2.close()
 
+    @unittest.expectedFailure
+    def test_06_EmulatedPort_ErrorWhenWritingWithExogenousClosed(self):
 
+        comm1 = serial.Serial( str( self.__EmulatedPort + "0" ), 
+            9600, 
+            timeout = 3 )
+
+        comm1.write( bytes("XYZ\n", 'utf-8') )
+
+    @unittest.expectedFailure
+    def test_07_Exogenous_ErrorWhenWritingWithEmulatedPortClosed(self):
+
+        comm1 = serial.Serial( str( self.__Exogenous + "0" ), 
+            9600, 
+            timeout = 3 )
+
+        comm1.write( bytes("XYZ\n", 'utf-8') )
             
-
 if __name__ == '__main__':
     unittest.main()
