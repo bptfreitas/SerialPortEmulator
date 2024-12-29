@@ -90,9 +90,7 @@ module="`lsmod | grep virtualbot`"
 
 if [[ $module == "" ]]; then
     echo -e "ERROR!\nKernel module is not loaded!"
-    echo "Make sure the module is compiled and installed by\
-        running 'make all modules_install install' inside the\
-        driver's source code"
+    echo "Make sure the module is compiled and installed by running 'make all modules_install install' inside the driver's source code"
     exit 1
 else
 
