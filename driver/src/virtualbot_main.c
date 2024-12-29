@@ -326,19 +326,16 @@ static int virtualbot_write(struct tty_struct *tty,
 
 	if (!virtualbot){
 		pr_warn("virtualbot: %s driver data %d not set!", __func__, index);
-		mutex_unlock(&virtualbot_lock[ index ]);
-		return -ENODEV;
+		retval = -ENODEV;
+		goto cleanup_virtualbot;
 	}
 
 	if ( virtualbot->open_count == 0 ){
 		/* port was not opened */
 		pr_warn("virtualbot: %s - port %d not open!", __func__, index);
-		mutex_unlock(&virtualbot_lock[ index ]);		
-		return -ENODEV;
+		retval = -ENODEV;
+		goto cleanup_virtualbot;
 	}	
-
-	mutex_unlock(&virtualbot_lock[ index ]);
-
 
 	mutex_lock(&vb_comm_lock[ index ]);
 		
@@ -346,21 +343,21 @@ static int virtualbot_write(struct tty_struct *tty,
 	if (vb_comm == NULL){
 		pr_warn("virtualbot: %s - vb_comm %d not set!", __func__, index);
 		retval = -ENODEV;
-		goto exit;
+		goto cleanup_vb_comm;
 	}
 
 	vb_comm_tty = vb_comm->tty;
 	if (vb_comm_tty == NULL ){
 		pr_warn("virtualbot: %s - vb_comm %d tty not set!", __func__, index);
 		retval = -ENODEV;
-		goto exit;
+		goto cleanup_vb_comm;
 	}
 
 	vb_comm_port = vb_comm_tty->port;
 	if (vb_comm_port == NULL){
 		pr_warn("virtualbot: %s - vb_comm %d port not set!", __func__, index);
 		retval = -ENODEV;
-		goto exit;
+		goto cleanup_vb_comm;
 	}
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0)) 
@@ -382,8 +379,11 @@ static int virtualbot_write(struct tty_struct *tty,
 
 	retval = count;
 
-exit:
+cleanup_vb_comm:
 	mutex_unlock( &vb_comm_lock[ index ] );
+
+cleanup_virtualbot:
+	mutex_unlock(&virtualbot_lock[ index ]);			
 
 	return retval;
 }
@@ -930,19 +930,17 @@ static int vb_comm_write(struct tty_struct *tty,
 	vb_comm = tty->driver_data;
 
 	if (!vb_comm){
-		pr_warn("vb_comm: %s - virtualbot %d driver data not set!", __func__, index);
-		mutex_unlock( &vb_comm_lock[ index ] );
-		return -ENODEV;
+		pr_warn("vb_comm: %s - virtualbot %d driver data not set!", __func__, index);		
+		retval = -ENODEV;
+		goto cleanup_vb_comm;
 	}
 
 	if (vb_comm->open_count <= 0){
 		/* port was not opened */
 		pr_warn("vb_comm: %s - virtualbot %d not open!", __func__, index);		
-		mutex_unlock( &vb_comm_lock[ index ] );
-		return -ENODEV;
+		retval = -ENODEV;
+		goto cleanup_vb_comm;
 	}
-
-	mutex_unlock( &vb_comm_lock[ index ] );
 
 	mutex_lock( &virtualbot_lock[ index ] );
 
@@ -950,21 +948,21 @@ static int vb_comm_write(struct tty_struct *tty,
 	if (virtualbot == NULL){
 		pr_warn("vb_comm: %s - virtualbot %d not set!", __func__, index);
 		retval = -ENODEV;
-		goto exit;
+		goto cleanup_virtualbot;
 	}
 
 	virtualbot_tty = virtualbot->tty;
 	if (virtualbot_tty == NULL){
 		pr_warn("vb_comm: %s - virtualbot %d tty not set!", __func__, index);
 		retval = -ENODEV;
-		goto exit;
+		goto cleanup_virtualbot;
 	}
 
 	virtualbot_port = virtualbot_tty->port;
 	if (virtualbot_port == NULL){
 		pr_warn("vb_comm: %s - virtualbot %d port not set!", __func__, index);
 		retval = -ENODEV;
-		goto exit;
+		goto cleanup_virtualbot;
 	}
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0)) 
@@ -985,8 +983,11 @@ static int vb_comm_write(struct tty_struct *tty,
 
 	retval = count;
 
-exit:
+cleanup_virtualbot:
 	mutex_unlock( &virtualbot_lock[ index ] );
+
+cleanup_vb_comm:
+	mutex_unlock( &vb_comm_lock[ index ] );	
 
 	return retval;
 }
