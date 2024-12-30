@@ -281,7 +281,7 @@ static void virtualbot_close(struct tty_struct *tty, struct file *file)
 
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 8, 0))
- 
+
 static ssize_t virtualbot_write(struct tty_struct *tty,
 	const u8 *buffer,
 	size_t count)
@@ -594,7 +594,8 @@ static int virtualbot_proc_show(struct seq_file *m, void *v)
 
 		mutex_unlock( &virtualbot_lock[ i ] ) ;
 
-		seq_printf(m, "Emulated Port %d open (count = %d)\n", 
+		seq_printf(m, "%s %d open (count = %d)\n",
+			VIRTUALBOT_TTY_NAME,
 			i, 
 			emulated_port_open_count);
 	}
@@ -613,7 +614,8 @@ static int virtualbot_proc_show(struct seq_file *m, void *v)
 
 		mutex_unlock( &vb_comm_lock[ i ] ) ;
 
-		seq_printf(m, "Exogenous %d open (count = %d)\n", 
+		seq_printf(m, "%s %d open (count = %d)\n", 
+			VB_COMM_TTY_NAME,
 			i, 
 			vb_comm_open_count);
 	}
